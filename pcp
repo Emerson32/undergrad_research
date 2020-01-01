@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# pcp - Copy files/directories, over ssh, to a remote pi
+
+SCRIP_DIR="$PWD"
+
+function is_dir()
+{
+    test -d "$1"; return "$?"
+}
+
+function transfer()
+{
+    case "$?" in
+        "0")
+            #echo $DEST:/home/pi/dev_files/usb_sandbox/$1
+            echo "Transferring $1 ... "
+            scp -r $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
+            ;;
+        "1")
+            #echo $DEST:/home/pi/dev_files/usb_sandbox/$1
+            scp $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
+            ;;
+        *)
+            echo "Could not determine file type of $1"
+    esac
+}
+
+# Destination host
+DEST="$(cat $SCRIP_DIR/pcp_hosts/pi_host.txt)"
+
+# Check args for valid length
+if [ "$#" -lt 1 ];then
+    echo "Usage: pcp <file_list>"
+
+# Copy a single file/dir
+elif [ "$#" -eq 1 ]; then
+    is_dir $1
+    transfer $1
+
+# Copy many files/dirs
+else
+    for arg in "$@"; do
+        is_dir $arg
+        transfer $arg
+    done
+fi
