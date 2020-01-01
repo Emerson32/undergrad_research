@@ -3,38 +3,64 @@
 # pcp - Copy files/directories, over ssh, to a remote pi
 
 SCRIP_DIR="$PWD"
+HOST_FILE=""
 
 function is_dir()
 {
     test -d "$1"; return "$?"
 }
 
+# Handle file transfers
 function transfer()
 {
     case "$?" in
         "0")
             #echo $DEST:/home/pi/dev_files/usb_sandbox/$1
-            echo "Transferring $1 ... "
-            scp -r $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
+            echo "Transferring directory named $1 ... "
+            #scp -r $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
             ;;
         "1")
+            echo "Transferring file named $1 ... "
             #echo $DEST:/home/pi/dev_files/usb_sandbox/$1
-            scp $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
+            #scp $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
             ;;
         *)
             echo "Could not determine file type of $1"
     esac
 }
 
+# Parse any space delimeted command line options
+function get_opts()
+{
+    echo "Checking for options"
+    while [[ $# -gt 0 ]]; do
+        key="$1"
+
+        case $key in
+            -h|--host)
+                HOST_FILE="$2"
+                shift 2         # past arg and value
+                ;;
+            *)
+                shift           # past arg
+        esac
+    done
+}
+
+
 # Destination host
-DEST="$(cat $SCRIP_DIR/pcp_hosts/pi_host.txt)"
+DEST="$(cat $SCRIP_DIR/pcp_hosts/$HOST_FILE)"
 
 # Check args for valid length
-if [ "$#" -lt 1 ];then
+if [ "$#" -lt 1 ]; then
     echo "Usage: pcp <file_list>"
+fi
+
+# Check for options
+get_opts
 
 # Copy a single file/dir
-elif [ "$#" -eq 1 ]; then
+if [ "$#" -eq 1 ]; then
     is_dir $1
     transfer $1
 
