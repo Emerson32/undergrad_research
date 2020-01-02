@@ -3,7 +3,6 @@
 # pcp - Copy files/directories, over ssh, to a remote pi
 
 SCRIP_DIR="$PWD"
-HOST_FILE=""
 
 function is_dir()
 {
@@ -17,12 +16,12 @@ function transfer()
         "0")
             #echo $DEST:/home/pi/dev_files/usb_sandbox/$1
             echo "Transferring directory named $1 ... "
-            #scp -r $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
+            scp -r $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
             ;;
         "1")
             echo "Transferring file named $1 ... "
             #echo $DEST:/home/pi/dev_files/usb_sandbox/$1
-            #scp $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
+            scp $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
             ;;
         *)
             echo "Could not determine file type of $1"
@@ -33,31 +32,41 @@ function transfer()
 function get_opts()
 {
     echo "Checking for options"
-    while [[ $# -gt 0 ]]; do
-        key="$1"
-
-        case $key in
-            -h|--host)
-                HOST_FILE="$2"
-                shift 2         # past arg and value
-                ;;
-            *)
-                shift           # past arg
-        esac
-    done
 }
 
-
-# Destination host
-DEST="$(cat $SCRIP_DIR/pcp_hosts/$HOST_FILE)"
 
 # Check args for valid length
 if [ "$#" -lt 1 ]; then
     echo "Usage: pcp <file_list>"
+    exit 2
 fi
 
 # Check for options
-get_opts
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+    key="$1"
+
+    case $key in
+        -h|--host)
+            HOST_FILE="$2"
+            shift 2          # past arg and value
+            ;;
+        *)
+            POSITIONAL+=("$1")
+            shift           # past arg
+            ;;
+    esac
+done
+
+if [ -z "$HOST_FILE" ]; then
+    echo "[!] Missing host file"
+    exit 2
+fi
+# Restore positional params
+set -- "${POSITIONAL[@]}"
+
+# Destination host
+DEST="$(cat $SCRIP_DIR/pcp_hosts/${HOST_FILE})"
 
 # Copy a single file/dir
 if [ "$#" -eq 1 ]; then
