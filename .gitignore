@@ -1,2 +1,5 @@
 # Ignore hosts directory
 /pcp_hosts
+
+# Ignore venv files
+venv/
