@@ -2,4 +2,4 @@
 /pcp_hosts
 
 # Ignore venv files
-env/
+venv/
