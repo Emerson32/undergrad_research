@@ -14,14 +14,14 @@ function transfer()
 {
     case "$?" in
         "0")
-            #echo $DEST:/home/pi/dev_files/usb_sandbox/$1
+            #echo $DEST:/home/pi/dev_files/pi_box/$1
             echo "Transferring directory named $1 ... "
-            scp -r $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
+            scp -r $1 $DEST:/home/pi/dev_files/pi_box/$1
             ;;
         "1")
             echo "Transferring file named $1 ... "
-            #echo $DEST:/home/pi/dev_files/usb_sandbox/$1
-            scp $1 $DEST:/home/pi/dev_files/usb_sandbox/$1
+            #echo $DEST:/home/pi/dev_files/pi_box/$1
+            scp $1 $DEST:/home/pi/dev_files/pi_box/$1
             ;;
         *)
             echo "Could not determine file type of $1"
@@ -29,10 +29,10 @@ function transfer()
 }
 
 # Parse any space delimeted command line options
-function get_opts()
-{
-    echo "Checking for options"
-}
+#function get_opts()
+#{
+#    echo "Checking for options"
+#}
 
 
 # Check args for valid length
