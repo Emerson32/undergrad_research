@@ -3,3 +3,5 @@
 
 # Ignore venv files
 venv/
+
+Makefile
