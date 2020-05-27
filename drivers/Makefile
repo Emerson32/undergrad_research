@@ -1,4 +1,4 @@
-obj-m += hello-1.o
+obj-m += pibox_usb.o
 
 all:
 	make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -C /home/emerson/rpi_linux M=$(PWD) modules
