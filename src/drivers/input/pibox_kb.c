@@ -13,8 +13,6 @@
 #define SEPARATION_THRESH 80     /* Keystroke separation threshold, in ms */
 #define KEYPRESS_BUFFSIZE 1024   /* Max keypress buff size */
 
-static struct semaphore sem;
-
 /* Keypress mappings */
 static const char* keymap[] = { "\0", "ESC", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "_BACKSPACE_", "_TAB_",
                         "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "[", "]", "_ENTER_", "_CTRL_", "a", "s", "d", "f",
@@ -37,6 +35,8 @@ static const char* keymapShiftActivated[] =
                         "_UP_", "_PGUP_", "_LEFT_", "_RIGHT_", "_END_", "_DOWN_", "_PGDN_", "_INSERT_", "_DEL_", "\0", "\0",
                         "\0", "\0", "\0", "\0", "\0", "_PAUSE_"};
 
+static struct semaphore sem;
+
 /* Kernel netlink socket */
 static struct sock *nl_sk = NULL;
 
@@ -46,13 +46,13 @@ static char keypress_buff[KEYPRESS_BUFFSIZE];
 /* Default delay expressed in jiffies */
 static int delay = HZ;
 
-/* Keystroke timestamp for calculating keystroke speed */
+/* Initial time stamp for keypress calculation */
 static unsigned long init_stamp = 0;
 
 /* Caluculated time of separation between kepyresses */
 static signed long stroke_separation;
 
-/* Sequence counter */
+/* Keypress sequence counter */
 static int sequence_count = 0;
 
 /* Object for keypress validation */
@@ -64,7 +64,7 @@ struct keypress {
 /* Shift key is pressed */
 static int shiftKeyDepressed = 0;
 
-/* Keyboard notification prototypes */
+/* Keyboard notification callback */
 static int kb_notify(struct notifier_block *, unsigned long, void *);
 
 /* Netlink callback */
@@ -102,11 +102,9 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
 
         if (param->down)
         {
-            // Acquire lock to read and modify the global variables
-            // init_stamp and stroke_speed
+            // Acquire lock to acces global variables */
             down(&sem);
 
-            /* Reset the keypress buffer */
             memset(&keypress_buff, '\0', sizeof keypress_buff);
 
             struct keypress key = {
@@ -114,15 +112,11 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
                 .valid = "1",
             };
 
-            /* Copy the key literal into the keypress buffer */
+            /* Store the correct key value */
             if (shiftKeyDepressed == 0)
-            {
                 strncpy(keyval, keymap[param->value], sizeof keyval);
-            }
             else
-            {
                 strncpy(keyval, keymapShiftActivated[param->value], sizeof keyval);
-            }
 
             strncpy(keypress_buff, keyval, sizeof keyval);
 
@@ -156,7 +150,6 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
                 if (sequence_count == 3)
                 {
                     pr_alert("Suspicious typing speed detected\n");
-
                     key.valid[0] = '0';
                     sequence_count = 0;
                 }
@@ -186,7 +179,7 @@ static void nl_recv_msg(struct sk_buff *skb)
     int pid;
     int msg_size = strlen(keypress_buff);
 
-    printk(KERN_INFO "Entering message send function\n");
+    pr_info("Entering message send function\n");
 
     nlh = (struct nlmsghdr *)skb->data;
     pr_info("Netlink received msg payload: %s\n",
@@ -209,8 +202,7 @@ static void nl_recv_msg(struct sk_buff *skb)
     NETLINK_CB(skb_out).dst_group = 0;  /* not in mcast group */
     strncpy(nlmsg_data(nlh), keypress_buff, msg_size);
 
-    res = nlmsg_unicast(nl_sk, skb_out, pid);
-    if (res < 0)
+    if ((res = nlmsg_unicast(nl_sk, skb_out, pid)) < 0)
     {
         pr_info("Error while sending back to user\n");
     }
@@ -219,7 +211,6 @@ static void nl_recv_msg(struct sk_buff *skb)
 
 static int __init kb_init(void)
 {
-    /* Fill the keypress buffer with null-bytes */
     memset(&keypress_buff, '\0', sizeof keypress_buff);
 
     /* Create the netlink socket */

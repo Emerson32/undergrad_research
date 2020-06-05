@@ -1,2 +1,2 @@
 # usb_sandbox
-USB sandbox application using a raspberry pi
+USB HID sandbox application using a raspberry pi
