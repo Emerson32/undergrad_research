@@ -10,6 +10,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "dbg.h"
+#include "key_packet.h"
+
 #define MYPROTO      NETLINK_USERSOCK
 #define MYGRP        31
 #define MAX_PAYLOAD  1024
@@ -47,39 +50,40 @@ int open_netlink(void)
     return sock_fd;
 }
 
-void read_keypress(int sock)
-{
-    struct sockaddr_nl nladdr;
-    struct msghdr msg;
-    struct iovec iov;
-    int ret;
-    char buff[MAX_PAYLOAD];
-
-    memset(&buff, '\0', sizeof buff);
-
-    iov.iov_base = (void *)buff;
-    iov.iov_len = sizeof(buff);
-    msg.msg_name = (void *)&nladdr;
-    msg.msg_namelen = sizeof(nladdr);
-    msg.msg_iov = &iov;
-    msg.msg_iovlen = 1;
-
-    //printf("Listening for keystroke packets...\n");
-    if ((ret = recvmsg(sock, &msg, 0)) < 0)
-        perror("recvmsg");
-    else
-        printf("%s\n", (char *)NLMSG_DATA((struct nlmsghdr *) &buff));
-}
-
 int main()
 {
     int nls;
+    int valid;
+    char packet[MAX_PAYLOAD];
+
     if ((nls = open_netlink()) < 0)
         return nls;
 
     while (1)
     {
-        read_keypress(nls);
+        /* Get the keypress packet */
+        memset(&packet, '\0', sizeof packet);
+        read_packet(nls, packet);
+        if (packet[0] == '\0')      /* packet read failed */
+        {
+            log_err("[!] Failed to read packet");
+        }
+
+        // TODO: Packet validation does not work for CTRL and TAB keys
+        if ((valid = validate_packet(packet)) < 0)
+        {
+            log_err("[!] Validity flag missing");
+        }
+
+        if (valid)
+        {
+            debug("Valid packet found: %s", packet);
+        }
+        else
+        {
+            /* Temporarily unbind input event drivers */
+            printf("[+] Invalid key detected\n");  
+        }
     }
     return 0;
 }
