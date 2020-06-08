@@ -9,7 +9,9 @@
 #include <linux/netlink.h>
 #include <linux/skbuff.h>
 
-#define NETLINK_USER 31
+#define MYPROTO NETLINK_USERSOCK
+#define MYGRP 31
+
 #define SEPARATION_THRESH 80     /* Keystroke separation threshold, in ms */
 #define KEYPRESS_BUFFSIZE 1024   /* Max keypress buff size */
 
@@ -68,12 +70,7 @@ static int shiftKeyDepressed = 0;
 static int kb_notify(struct notifier_block *, unsigned long, void *);
 
 /* Netlink callback */
-static void nl_recv_msg(struct sk_buff *skb);
-
-/* Netlink cfg struct */
-struct netlink_kernel_cfg cfg = {
-    .input = nl_recv_msg,
-};
+static void nl_send_msg(void);
 
 /* Keyboard notification callback */
 static int kb_notify(struct notifier_block *nblock, unsigned long action, void *data)
@@ -139,31 +136,34 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
 
                 pr_info("stroke_separation: %ld value: %d\n",
                         stroke_separation, param->value);
-
-                // Increment the sequence count as necessary
-                if (stroke_separation < SEPARATION_THRESH)
-                    sequence_count++;
-                else
-                    sequence_count = 0;
-
-                // Flag suspicious behavior
-                if (sequence_count == 3)
-                {
-                    pr_alert("Suspicious typing speed detected\n");
-                    key.valid[0] = '0';
-                    sequence_count = 0;
-                }
-
-                /* Copy the validity to the valid buffer */
-                strncpy(valid, key.valid, sizeof valid);
-
-                /* Append the valid buffer to the keypress buffer */
-                strncat(keypress_buff, " ", 2);
-                strncat(keypress_buff, valid, 2);
-                //pr_info("Keypress buffer: %s\n", keypress_buff);
             }
-            up(&sem);
+
+            // Increment the sequence count as necessary
+            if (stroke_separation < SEPARATION_THRESH)
+                sequence_count++;
+            else
+                sequence_count = 0;
+
+            // Flag suspicious behavior
+            if (sequence_count == 3)
+            {
+                pr_alert("Suspicious typing speed detected\n");
+                key.valid[0] = '0';
+                sequence_count = 0;
+            }
+
+            /* Copy the validity to the valid buffer */
+            strncpy(valid, key.valid, sizeof valid);
+
+            /* Append the valid buffer to the keypress buffer */
+            strncat(keypress_buff, " ", 2);
+            strncat(keypress_buff, valid, 2);
+            //pr_info("Keypress buffer: %s\n", keypress_buff);
+
+            /* Send the keypress packet to user space */
+            nl_send_msg();
         }
+        up(&sem);
     }
     return NOTIFY_OK;
 }
@@ -171,24 +171,23 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
 /* Create the notifier_block object */
 static struct notifier_block kb_nb = { .notifier_call = kb_notify };
 
-static void nl_recv_msg(struct sk_buff *skb)
+static void nl_send_msg(void)
 {
     struct nlmsghdr *nlh = NULL;
     struct sk_buff *skb_out = NULL;
+    int msg_size = strlen(keypress_buff + 1);
     int res;
-    int pid;
-    int msg_size = strlen(keypress_buff);
 
-    pr_info("Entering message send function\n");
+    //pr_info("Entering message send function\n");
 
-    nlh = (struct nlmsghdr *)skb->data;
-    pr_info("Netlink received msg payload: %s\n",
-            (char *)NLMSG_DATA(nlh));
+    //nlh = (struct nlmsghdr *)skb->data;
+    //pr_info("Netlink received msg payload: %s\n",
+    //        (char *)NLMSG_DATA(nlh));
 
-    pid = nlh->nlmsg_pid;       /* pid of sending process */
+    //pid = nlh->nlmsg_pid;       [> pid of sending process <]
 
     /* Send the keypress bufer from kernel to user */
-    skb_out = nlmsg_new(msg_size, 0);
+    skb_out = nlmsg_new(msg_size, GFP_KERNEL);
     if (!skb_out)
     {
         pr_err("Failed to allocate new skb\n");
@@ -198,15 +197,13 @@ static void nl_recv_msg(struct sk_buff *skb)
     //nlh->nlmsg_len = NLMSG_SPACE(KEYPRESS_BUFFSIZE);
     //nlh->nlmsg_pid = 0;     [> from kernel <]
     //nlh->nlmsg_flags = 0;
-    nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
-    NETLINK_CB(skb_out).dst_group = 0;  /* not in mcast group */
+    nlh = nlmsg_put(skb_out, 0, 1, NLMSG_DONE, msg_size, 0);
     strncpy(nlmsg_data(nlh), keypress_buff, msg_size);
 
-    if ((res = nlmsg_unicast(nl_sk, skb_out, pid)) < 0)
+    if ((res = nlmsg_multicast(nl_sk, skb_out, 0, MYGRP, GFP_KERNEL)) < 0)
     {
         pr_info("Error while sending back to user\n");
     }
-    //kfree(skb_out);
 }
 
 static int __init kb_init(void)
@@ -214,7 +211,7 @@ static int __init kb_init(void)
     memset(&keypress_buff, '\0', sizeof keypress_buff);
 
     /* Create the netlink socket */
-    nl_sk = netlink_kernel_create(&init_net, NETLINK_USER, &cfg);
+    nl_sk = netlink_kernel_create(&init_net, MYPROTO, NULL);
     if (!nl_sk)
     {
         pr_alert("Error creating netlink socket.\n");

@@ -10,66 +10,76 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define NETLINK_USER 31
-#define MAX_PAYLOAD 1024
+#define MYPROTO      NETLINK_USERSOCK
+#define MYGRP        31
+#define MAX_PAYLOAD  1024
 
-struct sockaddr_nl src_addr, dest_addr;
-struct nlmsghdr *nlh = NULL;
-struct iovec iov;
-int sock_fd;
-struct msghdr msg;
-
-int main()
+int open_netlink(void)
 {
+    int sock_fd;
+    struct sockaddr_nl addr;
+    int group = MYGRP;
 
-    if ((sock_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_USER)) == -1)
+    if ((sock_fd = socket(AF_NETLINK, SOCK_RAW, MYPROTO)) < 0)
     {
         perror("unetlink: socket");
-        return -1;
+        return sock_fd;
     }
 
-    memset(&src_addr, 0, sizeof(src_addr));
-    src_addr.nl_family = AF_NETLINK;
-    src_addr.nl_pid = getpid();     /* self pid */
+    memset(&addr, 0, sizeof(addr));
+    addr.nl_family = AF_NETLINK;
+    addr.nl_pid = getpid();     /* self pid */
 
-    if (bind(sock_fd, (struct sockaddr *)&src_addr,
-                sizeof src_addr) == -1)
+    if (bind(sock_fd, (struct sockaddr *)&addr,
+                sizeof addr) == -1)
     {
         close(sock_fd);
         perror("unetlink: bind");
         return -1;
     }
 
-    memset(&dest_addr, 0, sizeof dest_addr);
-    dest_addr.nl_family = AF_NETLINK;
-    dest_addr.nl_pid = 0;       /* For Linux kernel */
-    dest_addr.nl_groups = 0;    /* unicast */
+    if (setsockopt(sock_fd, 270, NETLINK_ADD_MEMBERSHIP,
+                &group, sizeof(group)) < 0)
+    {
+        perror("setsockopt");
+        return -1;
+    }
+    return sock_fd;
+}
 
-    nlh = (struct nlmsghdr *)malloc(NLMSG_SPACE(MAX_PAYLOAD));
-    memset(nlh, 0, NLMSG_SPACE(MAX_PAYLOAD));
-    nlh->nlmsg_len = NLMSG_SPACE(MAX_PAYLOAD);
-    nlh->nlmsg_pid = getpid();
-    nlh->nlmsg_flags = 0;
+void read_keypress(int sock)
+{
+    struct sockaddr_nl nladdr;
+    struct msghdr msg;
+    struct iovec iov;
+    int ret;
+    char buff[MAX_PAYLOAD];
 
-    strcpy(NLMSG_DATA(nlh), "");
+    memset(&buff, '\0', sizeof buff);
 
-    iov.iov_base = (void *)nlh;
-    iov.iov_len = nlh->nlmsg_len;
-    msg.msg_name = (void *)&dest_addr;
-    msg.msg_namelen = sizeof(dest_addr);
+    iov.iov_base = (void *)buff;
+    iov.iov_len = sizeof(buff);
+    msg.msg_name = (void *)&nladdr;
+    msg.msg_namelen = sizeof(nladdr);
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
 
-    // Notify the kernel that the application is ready for data
-    printf("Sending message to kernel\n");
-    sendmsg(sock_fd, &msg, 0);
+    //printf("Listening for keystroke packets...\n");
+    if ((ret = recvmsg(sock, &msg, 0)) < 0)
+        perror("recvmsg");
+    else
+        printf("%s\n", (char *)NLMSG_DATA((struct nlmsghdr *) &buff));
+}
 
-    printf("Waiting for message from kernel\n");
+int main()
+{
+    int nls;
+    if ((nls = open_netlink()) < 0)
+        return nls;
 
-    /* Read the message from the kernel */
-    recvmsg(sock_fd, &msg, 0);
-    printf("Received message payload: %s\n", (char *)NLMSG_DATA(nlh));
-
-    free(nlh);
-    close(sock_fd);
+    while (1)
+    {
+        read_keypress(nls);
+    }
+    return 0;
 }
