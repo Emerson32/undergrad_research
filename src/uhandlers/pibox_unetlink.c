@@ -69,7 +69,8 @@ int main()
             log_err("[!] Failed to read packet");
         }
 
-        // TODO: Packet validation does not work for CTRL and TAB keys
+        debug("Packet contents: %s", packet);
+
         if ((valid = validate_packet(packet)) < 0)
         {
             log_err("[!] Validity flag missing");

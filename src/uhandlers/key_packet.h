@@ -40,7 +40,7 @@ void read_packet(int sock, char *packt_buff)
  
     // Copy the data into the provided packet buffer
     strncpy(packt_buff, (char *)NLMSG_DATA((struct nlmsghdr *) &buff),
-            sizeof(packt_buff) - 1);
+            MAX_PAYLOAD - 1);
 }
 
 int validate_packet(char *packet)
