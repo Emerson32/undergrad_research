@@ -85,7 +85,8 @@ int main()
         else       
         {
             // TODO: Implement driver unbinding feature
-            printf("[+] Invalid key detected\n");  
+            printf("[+] Invalid key detected\n");
+            binding_handler();
         }
     }
     return 0;

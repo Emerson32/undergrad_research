@@ -10,10 +10,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define MAX_PAYLOAD  1024
 
-
+/*
+* Responsible for receiving a keypress packet from kernel space
+*/
 void read_packet(int sock, char *packt_buff)
 {
     struct sockaddr_nl nladdr;
@@ -43,9 +47,11 @@ void read_packet(int sock, char *packt_buff)
             MAX_PAYLOAD - 1);
 }
 
+/*
+* Responsible for the validation of a keypress packet
+*/
 int validate_packet(char *packet)
 {
-    // Packet format: key_code validity_flag
     char *token;
     char delim[2] = " ";
 
@@ -67,5 +73,25 @@ int validate_packet(char *packet)
     return 0;
 }
 
+/*
+* Handles the binding/unbinding of device drivers from input devices
+*/
+void binding_handler()
+{
+    pid_t child_pid;
+    if ((child_pid = fork()) == 0)      /* This is the child process */
+    {
+        /* call the unbind script */
+        if (execlp("unbind_input_drivers.sh", "unbind_input_drivers.sh", NULL) < 0)
+        {
+            perror("key_packet: execlp");
+            return;
+        }
+    }
+    else            /* Parent must wait for this process to finish */
+    {
+        while(waitpid(-1, NULL, WNOHANG) > 0);
+    }
+}
 
 #endif // KEY_PACKET_H
