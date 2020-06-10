@@ -80,11 +80,8 @@ int main()
         {
             debug("Valid packet found: %s", packet);
         }
-        
-        /* Temporarily unbind input event drivers */
         else       
         {
-            // TODO: Implement driver unbinding feature
             printf("[+] Invalid key detected\n");
             binding_handler();
         }

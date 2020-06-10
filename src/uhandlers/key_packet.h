@@ -82,9 +82,10 @@ void binding_handler()
     if ((child_pid = fork()) == 0)      /* This is the child process */
     {
         /* call the unbind script */
-        if (execlp("unbind_input_drivers.sh", "unbind_input_drivers.sh", NULL) < 0)
+        char script_path[] = "/home/pi/scripts/pibox/unbind_input_drivers.sh";
+        if (execl(script_path, script_path, NULL) < 0)
         {
-            perror("key_packet: execlp");
+            perror("key_packet: execl");
             return;
         }
     }

