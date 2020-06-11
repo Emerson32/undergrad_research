@@ -92,6 +92,7 @@ void binding_handler()
     else            /* Parent must wait for this process to finish */
     {
         while(waitpid(-1, NULL, WNOHANG) > 0);
+        return;
     }
 }
 
