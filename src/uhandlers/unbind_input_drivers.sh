@@ -29,3 +29,5 @@ sleep 5
 for id in "${input_devs[@]}"; do
     echo $id > /sys/bus/usb/drivers/usbhid/bind
 done
+
+exit 0

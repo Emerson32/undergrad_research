@@ -76,24 +76,39 @@ int validate_packet(char *packet)
 /*
 * Handles the binding/unbinding of device drivers from input devices
 */
-void binding_handler()
+int binding_handler()
 {
     pid_t child_pid;
-    if ((child_pid = fork()) == 0)      /* This is the child process */
+    int wstatus;
+
+    child_pid = fork();
+    if (child_pid == -1)
+    {
+        perror("unetlink: fork");
+        return -1;
+    }
+
+    if (child_pid == 0)      /* This is the child process */
     {
         /* call the unbind script */
         char script_path[] = "/home/pi/scripts/pibox/unbind_input_drivers.sh";
         if (execl(script_path, script_path, NULL) < 0)
         {
             perror("key_packet: execl");
-            return;
+            return -1;
         }
     }
     else            /* Parent must wait for this process to finish */
     {
-        while(waitpid(-1, NULL, WNOHANG) > 0);
-        return;
+        while(waitpid(child_pid, &wstatus, 0) > 0)
+        {
+            if (WIFEXITED(wstatus))
+            {
+                printf("Child exited with: %d\n", WEXITSTATUS(wstatus));
+            }
+        }
     }
+    return 0;
 }
 
 #endif // KEY_PACKET_H

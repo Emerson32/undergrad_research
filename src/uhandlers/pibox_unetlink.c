@@ -83,7 +83,9 @@ int main()
         else       
         {
             printf("[+] Invalid key detected\n");
-            binding_handler();
+
+            if (binding_handler() < 0)
+                return -1;
         }
     }
     return 0;
