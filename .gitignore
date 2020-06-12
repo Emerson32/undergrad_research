@@ -4,5 +4,12 @@
 # Ignore venv files
 venv/
 
+# Ignore Makefile, compiled binaries, and module objects
 Makefile
+src/uhandlers/pibox_unetlink
+/src/drivers/input/*
+!/src/drivers/input/pibox_kb.c
+!/src/drivers/input/pibox_kbbak.c
+
+# Ignore vs code configs
 .vscode
