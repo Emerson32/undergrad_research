@@ -16,6 +16,7 @@
 #define MYPROTO      NETLINK_USERSOCK
 #define MYGRP        31
 #define MAX_PAYLOAD  1024
+#define MAX_SEQ      4
 
 int open_netlink(void)
 {
@@ -53,8 +54,16 @@ int open_netlink(void)
 int main()
 {
     int nls;
-    int valid;
+    int valid = 1;
+
     char packet[MAX_PAYLOAD];
+
+    int is_first_stamp = 1;
+
+    int sequence_count = 0;
+    unsigned long stroke_separation = 0;  /* Individual stroke separation measurement */
+    long separation_sum = 0;              /* Running total of stroke separation measurements */
+    double avg_separation = 0;            /* Average stroke separation used for keypress validation */
 
     if ((nls = open_netlink()) < 0)
         return nls;
@@ -63,19 +72,45 @@ int main()
     {
         /* Get the keypress packet */
         memset(&packet, '\0', sizeof packet);
-        read_packet(nls, packet);
+        recv_packet(nls, packet);
         if (packet[0] == '\0')      /* packet read failed */
         {
             log_err("[!] Failed to read packet");
         }
 
+        printf("\n");
         debug("Packet contents: %s", packet);
+        debug("Sequence count: %d", sequence_count);
 
-        if ((valid = validate_packet(packet)) < 0)
+        if (is_first_stamp)    /* Do not add the very first stamp to the total */
         {
-            log_err("[!] Validity flag missing");
+            sequence_count++;
+            is_first_stamp = 0;
+            continue;
         }
 
+        stroke_separation = get_separation(packet);
+        if (stroke_separation == -1)
+        {
+            log_err("[!] Failed to parse separation measurement");
+            continue;
+        }
+
+        separation_sum += stroke_separation;
+        sequence_count++;
+
+        /* Evaluate the validity after four keypresses */
+        if (sequence_count == MAX_SEQ)
+        {
+            avg_separation = (double)separation_sum / (MAX_SEQ - 1); /* Calculate avg of 3 separation measurements */
+            debug("Average key separation: %.2f", avg_separation);
+            valid = validate_packet(&avg_separation);
+
+            // Reset total, average, and sequence count
+            separation_sum = 0;
+            avg_separation = 0;
+            sequence_count = 0;
+        }
         if (valid)
         {
             debug("Valid packet found: %s", packet);
@@ -88,5 +123,7 @@ int main()
                 return -1;
         }
     }
+    close(nls);
+
     return 0;
 }

@@ -13,8 +13,8 @@
 #define MYPROTO NETLINK_USERSOCK
 #define MYGRP 31
 
-#define SEPARATION_THRESH 80     /* Keystroke separation threshold, in ms */
 #define KEYPRESS_BUFFSIZE 1024   /* Max keypress buff size */
+#define SEP_BUFFSIZE      500
 
 /* Keypress mappings */
 static const char* keymap[] = { "\0", "ESC", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "_BACKSPACE_", "_TAB_",
@@ -53,15 +53,12 @@ static int delay = HZ;
 static unsigned long init_stamp = 0;
 
 /* Caluculated time of separation between kepyresses */
-static signed long stroke_separation;
-
-/* Keypress sequence counter */
-static int sequence_count = 0;
+static unsigned long stroke_separation;
 
 /* Object for keypress validation */
 struct keypress {
     int keycode;
-    char valid[1];
+    char separation[SEP_BUFFSIZE];
 } key;
 
 /* Shift key is pressed */
@@ -79,10 +76,10 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
     unsigned long jiff, curr_stamp = 0;
     jiff = jiffies;
 
-    signed long diff;
+    unsigned long diff;
 
     char keyval[21];
-    char valid[2];
+    // char separation[SEP_BUFFSIZE];
 
     struct keyboard_notifier_param *param = data;
     if (action == KBD_KEYCODE)
@@ -97,7 +94,6 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
             up(&sem);
             return NOTIFY_OK;
         }
-
         if (param->down)
         {
             // Acquire lock to acces global variables */
@@ -106,8 +102,7 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
             memset(&keypress_buff, '\0', sizeof keypress_buff);
 
             struct keypress key = {
-                .keycode = param->value,
-                .valid[0] = '1'
+                .keycode = param->value
             };
 
             /* Store the correct key value */
@@ -130,6 +125,9 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
                 curr_stamp = jiff;
                 diff = (long)curr_stamp - (long)init_stamp;
                 stroke_separation = diff * 1000 / delay;
+                
+                /* Convert the stroke separation into a string for later storage */
+                snprintf(key.separation, sizeof key.separation, "%ld", stroke_separation);
 
                 /* Adjust the init_stamp value for a future calculation*/
                 init_stamp = curr_stamp;
@@ -139,26 +137,13 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
                         stroke_separation, param->value);
             }
 
-            // Increment the sequence count as necessary
-            if (stroke_separation < SEPARATION_THRESH)
-                sequence_count++;
-            else
-                sequence_count = 0;
+            /* Copy the stroke separation measurement into the separation buffer */
+            // strncpy(separation, key.separation, sizeof separation);
 
-            if (sequence_count == 3)
-            {
-                pr_alert("Suspicious typing speed detected\n");
-                key.valid[0] = '0';
-                sequence_count = 0;
-            }
-
-            /* Copy the validity to the valid buffer */
-            strncpy(valid, key.valid, sizeof valid);
-
-            /* Append the valid buffer to the keypress buffer */
+            /* Append the key's separation measurement to the keypress buffer */
             strncat(keypress_buff, " ", 2);
-            strncat(keypress_buff, valid, 2);
-            //pr_info("Keypress buffer: %s\n", keypress_buff);
+            strncat(keypress_buff, key.separation, SEP_BUFFSIZE - 1);
+            pr_info("Keypress buffer: %s\n", keypress_buff);
 
             /* Send the keypress packet to user space */
             up(&sem);
@@ -175,7 +160,7 @@ static void nl_send_msg(void)
 {
     struct nlmsghdr *nlh = NULL;
     struct sk_buff *skb_out = NULL;
-    int msg_size = strlen(keypress_buff + 1);
+    int msg_size = strlen(keypress_buff) + 1;
     int res;
 
     //pr_info("Entering message send function\n");

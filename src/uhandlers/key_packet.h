@@ -13,12 +13,13 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#define MAX_PAYLOAD  1024
+#define MAX_PAYLOAD         1024
+#define SEPARATION_THRESH   80
 
 /*
 * Responsible for receiving a keypress packet from kernel space
 */
-void read_packet(int sock, char *packt_buff)
+void recv_packet(int sock, char *packt_buff)
 {
     struct sockaddr_nl nladdr;
     struct msghdr msg;
@@ -37,40 +38,48 @@ void read_packet(int sock, char *packt_buff)
 
     //printf("Listening for keystroke packets...\n");
     if ((ret = recvmsg(sock, &msg, 0)) < 0)
-    {
-        perror("recvmsg");
         return;
-    } 
  
     // Copy the data into the provided packet buffer
     strncpy(packt_buff, (char *)NLMSG_DATA((struct nlmsghdr *) &buff),
-            MAX_PAYLOAD - 1);
+            MAX_PAYLOAD);
+}
+
+/* 
+* Responsible for retrieving the stroke separation measurement from each packet
+*/
+unsigned long get_separation(char *packet)
+{
+    char *token;
+    char delim[2] = " ";
+    signed long stroke_separation = 0;
+
+    /* Keypress value */
+    token = strtok(packet, delim);
+
+    /* Stroke separation from last keypress */
+    token = strtok(NULL, delim);
+
+    /* Parsing error occurred */
+    if (!token)
+    {
+        return -1;
+    }
+
+    sscanf(token, "%ld", &stroke_separation);
+
+    return stroke_separation;
 }
 
 /*
 * Responsible for the validation of a keypress packet
 */
-int validate_packet(char *packet)
+int validate_packet(double *avg_sep)
 {
-    char *token;
-    char delim[2] = " ";
+    if (*avg_sep < SEPARATION_THRESH)
+        return 0;
 
-    /* Keypress */
-    token = strtok(packet, delim);
-
-    /* Validity flag */
-    token = strtok(NULL, delim);
-
-    /* Validity flag not found in this packet */
-    if (!token)
-    {
-        return -1;
-    }
-    
-    if (strcmp(token, "1") == 0)
-        return 1;
-
-    return 0;
+    return 1;
 }
 
 /*
