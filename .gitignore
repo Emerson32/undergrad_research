@@ -9,6 +9,7 @@ src/uhandlers/pibox_unetlink
 /src/drivers/input/*
 !/src/drivers/input/pibox_kb.c
 !/src/drivers/input/pibox_kbbak.c
+!/src/drivers/input/Makefile
 
 # Ignore vs code configs
 .vscode
