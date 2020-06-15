@@ -43,7 +43,7 @@ int open_netlink(void)
     }
 
     if (setsockopt(sock_fd, 270, NETLINK_ADD_MEMBERSHIP,
-                &group, sizeof(group)) < 0)
+                &group, sizeof(group)) < 0)                 /* Requires root privileges */
     {
         perror("setsockopt");
         return -1;
@@ -73,7 +73,7 @@ int main()
         /* Get the keypress packet */
         memset(&packet, '\0', sizeof packet);
         recv_packet(nls, packet);
-        if (packet[0] == '\0')      /* packet read failed */
+        if (packet[0] == '\0')      /* Packet read failed */
         {
             log_err("[!] Failed to read packet");
         }
