@@ -122,6 +122,8 @@ int main()
             if (binding_handler() < 0)
                 return -1;
         }
+
+        valid = 1;
     }
     close(nls);
 
