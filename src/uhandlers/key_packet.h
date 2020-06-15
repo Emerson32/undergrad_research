@@ -109,13 +109,7 @@ int binding_handler()
     }
     else            /* Parent must wait for this process to finish */
     {
-        while(waitpid(child_pid, &wstatus, 0) > 0)
-        {
-            if (WIFEXITED(wstatus))
-            {
-                printf("Child exited with: %d\n", WEXITSTATUS(wstatus));
-            }
-        }
+        while(waitpid(child_pid, &wstatus, 0) > 0);
     }
     return 0;
 }

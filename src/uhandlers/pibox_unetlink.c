@@ -117,7 +117,7 @@ int main()
         }
         else       
         {
-            printf("[+] Invalid key detected\n");
+            printf("[+] Invalid key sequence detected\n");
 
             if (binding_handler() < 0)
                 return -1;
