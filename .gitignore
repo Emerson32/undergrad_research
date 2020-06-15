@@ -4,8 +4,7 @@
 # Ignore venv files
 venv/
 
-# Ignore Makefile, compiled binaries, and module objects
-Makefile
+# Ignore compiled binaries, and module objects
 src/uhandlers/pibox_unetlink
 /src/drivers/input/*
 !/src/drivers/input/pibox_kb.c
