@@ -12,6 +12,7 @@
 
 #include "dbg.h"
 #include "key_packet.h"
+#include "bind_mgmt.h"
 
 #define MYPROTO      NETLINK_USERSOCK
 #define MYGRP        31
@@ -119,7 +120,7 @@ int main()
         {
             printf("[+] Invalid key sequence detected\n");
 
-            if (binding_handler() < 0)
+            if (unbind_handler() < 0)
                 return -1;
         }
 
