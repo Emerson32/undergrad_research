@@ -23,11 +23,4 @@ for id in "${input_devs[@]}"; do
     echo $id > /sys/bus/usb/drivers/usbhid/unbind
 done
 
-# sleep 1
-
-# # Rebind each of the drivers to the input devices
-# for id in "${input_devs[@]}"; do
-#     echo $id > /sys/bus/usb/drivers/usbhid/bind
-# done
-
 exit 0
