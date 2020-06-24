@@ -1,10 +1,3 @@
-/*
-* Procedures for receiving and validating a kepyress packet
-*/
-
-#ifndef KEY_PACKET_H
-#define KEY_PACKET_H
-
 #include <linux/netlink.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,9 +9,6 @@
 #define MAX_PAYLOAD         1024
 #define SEPARATION_THRESH   80
 
-/*
-* Responsible for receiving a keypress packet from kernel space
-*/
 void recv_packet(int sock, char *packt_buff)
 {
     struct sockaddr_nl nladdr;
@@ -45,9 +35,6 @@ void recv_packet(int sock, char *packt_buff)
             MAX_PAYLOAD);
 }
 
-/* 
-* Responsible for retrieving the stroke separation measurement from each packet
-*/
 unsigned long get_separation(char *packet)
 {
     char *token;
@@ -71,9 +58,6 @@ unsigned long get_separation(char *packet)
     return stroke_separation;
 }
 
-/*
-* Responsible for the validation of a keypress packet
-*/
 int validate_packet(double *avg_sep)
 {
     if (*avg_sep < SEPARATION_THRESH)
@@ -81,5 +65,3 @@ int validate_packet(double *avg_sep)
 
     return 1;
 }
-
-#endif // KEY_PACKET_H
