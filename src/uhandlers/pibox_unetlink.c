@@ -2,22 +2,24 @@
  * User-space netlink listener
  */
 
-#include <linux/netlink.h>
 #include <errno.h>
+#include <linux/netlink.h>
+#include <libudev.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "bind_mgmt.h"
 #include "dbg.h"
 #include "key_packet.h"
-#include "bind_mgmt.h"
 
 #define MYPROTO      NETLINK_USERSOCK
 #define MYGRP        31
 #define MAX_PAYLOAD  1024
 #define MAX_SEQ      4
+
 
 int open_netlink(void)
 {
@@ -52,6 +54,58 @@ int open_netlink(void)
     return sock_fd;
 }
 
+
+// TODO: Store the bus IDs in an array list of type char *, rather than printing them out
+
+/*
+* Iterates over input devices within /sys/clas/input and
+* stores the bus IDs of each device with the name event*
+*/
+void scan_input_devs(struct udev *udev_ctx, struct udev_list_entry *devs)
+{
+    struct udev_device *device;             /* udev device object */
+    struct udev_list_entry *dlist_entry;    /* current device list entry */
+
+    /* Iterate over the device list and store the respective bus IDs */
+    udev_list_entry_foreach(dlist_entry, devs)
+    {
+        char curr_id[12];           /* Current bus ID */
+        char curr_devpath[1024];    /* Current device path */
+
+        const char *path;
+        const char *dev_name;
+
+        // Acquire a device handle through a syspath, e.g. /sys/input/event0
+        path = udev_list_entry_get_name(dlist_entry);
+        device = udev_device_new_from_syspath(udev_ctx, path);
+        
+        dev_name = udev_device_get_sysname(device);     /* The actual device name, e.g. event0 */
+
+        /* Only worry about event* device names */
+        if (strstr(dev_name, "event"))
+        {
+            debug("I: DEVNAME=%s", udev_device_get_sysname(device));
+
+            memset(&curr_id, '\0', sizeof(curr_id));
+            memset(&curr_devpath, '\0', sizeof(curr_devpath));
+
+            // Get the current device path
+            strncpy(curr_devpath, udev_device_get_devpath(device), sizeof(curr_devpath) - 1);
+            curr_devpath[sizeof(curr_devpath) - 1] = '\0';          /* Append the null-byte for the last byte */
+
+            find_bus_id(curr_id, curr_devpath);
+            if (curr_id[0] == '\0')
+            {
+                debug("Failed to parse the bus id for %s", dev_name);
+            }
+
+            debug("Found bus_id %s for %s\n", curr_id, dev_name);
+        }
+        udev_device_unref(device);
+    }
+}
+
+
 int main()
 {
     int nls;
@@ -79,7 +133,7 @@ int main()
             log_err("[!] Failed to read packet");
         }
 
-        printf("\n");
+        debug();
         debug("Packet contents: %s", packet);
         debug("Sequence count: %d", sequence_count);
 
@@ -116,14 +170,53 @@ int main()
         {
             debug("Valid packet found: %s", packet);
         }
-        else       
+        else
         {
-            printf("[+] Invalid key sequence detected\n");
+            debug("[+] Invalid key sequence detected\n");
 
-            if (unbind_handler() < 0)
+            struct udev *udev;
+            struct udev_enumerate *enumerate;
+            struct udev_list_entry *devices;
+
+
+            /* Create udev context */
+            udev = udev_new();
+            if (!udev)
+            {
+                debug("Failed to create udev context.");
                 return -1;
-        }
+            }
 
+            /* Create enumerate context */
+            enumerate = udev_enumerate_new(udev);
+            if (!enumerate)
+            {
+                debug("Failed to create enumerate context.");
+                udev_unref(udev);
+                return -1;
+            }
+
+            /* Specify subsystem as input and scan for devices */
+            udev_enumerate_add_match_subsystem(enumerate, "input");
+            udev_enumerate_scan_devices(enumerate);
+
+            /* Populate the device list */
+            devices = udev_enumerate_get_list_entry(enumerate);
+            if (!devices)
+            {
+                debug("Failed to populate the device list");
+                udev_enumerate_unref(enumerate);
+                udev_unref(udev);
+            }
+
+            /* Iterate over the device list and store the respective bus IDs */
+            scan_input_devs(udev, devices);
+
+            udev_enumerate_unref(enumerate);
+            udev_unref(udev);
+
+            // TODO: Unbind the drivers by writing to the appropriate /sys entry
+        }
         valid = 1;
     }
     close(nls);
