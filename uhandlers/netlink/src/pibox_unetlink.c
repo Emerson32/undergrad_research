@@ -13,13 +13,15 @@
 
 #include "bind_mgmt.h"
 #include "dbg.h"
+#include "id_list.h"
 #include "key_packet.h"
 
 #define MYPROTO      NETLINK_USERSOCK
 #define MYGRP        31
 #define MAX_PAYLOAD  1024
-#define MAX_SEQ      4
 
+#define MAX_SEQ             4
+#define DEFUALT_LIST_LENGTH 4
 
 int open_netlink(void)
 {
@@ -91,7 +93,7 @@ void scan_input_devs(struct udev *udev_ctx, struct udev_list_entry *devs)
 
             // Get the current device path
             strncpy(curr_devpath, udev_device_get_devpath(device), sizeof(curr_devpath) - 1);
-            curr_devpath[sizeof(curr_devpath) - 1] = '\0';          /* Append the null-byte for the last byte */
+            curr_devpath[sizeof(curr_devpath) - 1] = '\0';
 
             find_bus_id(curr_id, curr_devpath);
             if (curr_id[0] == '\0')
@@ -104,7 +106,6 @@ void scan_input_devs(struct udev *udev_ctx, struct udev_list_entry *devs)
         udev_device_unref(device);
     }
 }
-
 
 int main()
 {
@@ -177,7 +178,6 @@ int main()
             struct udev *udev;
             struct udev_enumerate *enumerate;
             struct udev_list_entry *devices;
-
 
             /* Create udev context */
             udev = udev_new();
