@@ -1,13 +1,10 @@
-CC = arm-linux-gnueabihf-gcc
-CFLAGS = -Wall -g -I/usr/include
-LDFLAGS = -L/usr/lib/arm-linux-gnueabihf
-
-SRC_DIR = ./src
+INCL_DIR = ./includes
 OBJ_DIR = ./objs
+SRC_DIR = ./src
 
-DEPS = $(SRC_DIR)/key_packet.h
-DEPS += $(SRC_DIR)/bind_mgmt.h
-DEPS+= $(SRC_DIR)/id_list.h
+CC = arm-linux-gnueabihf-gcc
+CFLAGS = -Wall -g -I/usr/include -I$(INCL_DIR)
+LDFLAGS = -L/usr/lib/arm-linux-gnueabihf
 
 OBJS = $(OBJ_DIR)/key_packet.o
 OBJS += $(OBJ_DIR)/bind_mgmt.o
@@ -18,7 +15,7 @@ $(info objs: $(OBJS))
 
 build: $(OBJS)
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c $(DEPS)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 pibox_unetlink: $(OBJS)
