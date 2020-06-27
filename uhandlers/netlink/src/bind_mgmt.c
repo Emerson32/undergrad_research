@@ -8,8 +8,6 @@
 
 #include "dbg.h"
 
-#define UNBIND_PATH "/sys/bus/usb/drivers/usbhid/unbind"
-#define BIND_PATH   "/sys/bus/usb/drivers/usbhid/bind"
 #define MAX_MATCHES 1
 
 void find_bus_id(char *result, char *dev_path)

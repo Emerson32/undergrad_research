@@ -21,7 +21,6 @@
 #define MAX_PAYLOAD  1024
 
 #define MAX_SEQ             4
-#define DEFUALT_LIST_LENGTH 4
 
 int open_netlink(void)
 {
@@ -63,7 +62,10 @@ int open_netlink(void)
 * Iterates over input devices within /sys/clas/input and
 * stores the bus IDs of each device with the name event*
 */
-void scan_input_devs(struct udev *udev_ctx, struct udev_list_entry *devs)
+void acquire_bus_ids(
+    struct udev *udev_ctx,
+    struct udev_list_entry *devs,
+    struct ID_List *list)
 {
     struct udev_device *device;             /* udev device object */
     struct udev_list_entry *dlist_entry;    /* current device list entry */
@@ -99,9 +101,14 @@ void scan_input_devs(struct udev *udev_ctx, struct udev_list_entry *devs)
             if (curr_id[0] == '\0')
             {
                 debug("Failed to parse the bus id for %s", dev_name);
+                continue;
             }
 
+            // TODO: id_list_add call below segfaults upon first invocation
+            //      find_bus_id() and id_list_add() are the current culprits
+
             debug("Found bus_id %s for %s\n", curr_id, dev_name);
+            id_list_add(list, curr_id);
         }
         udev_device_unref(device);
     }
@@ -114,8 +121,9 @@ int main()
 
     char packet[MAX_PAYLOAD];
 
-    int is_first_stamp = 1;
+    FILE *unbind_fp;
 
+    int is_first_stamp = 1;
     int sequence_count = 0;
     unsigned long stroke_separation = 0;  /* Individual stroke separation measurement */
     long separation_sum = 0;              /* Running total of stroke separation measurements */
@@ -210,15 +218,42 @@ int main()
             }
 
             /* Iterate over the device list and store the respective bus IDs */
-            scan_input_devs(udev, devices);
+            struct ID_List *id_list = id_list_create();
+            acquire_bus_ids(udev, devices, id_list);
+            
+            debug("Printing out the id_list ...");
+            for (int i = 0; i < id_list_size(id_list); i++)
+            {
+                debug("ID: %s", id_list_get(id_list, i));
+            }
 
             udev_enumerate_unref(enumerate);
             udev_unref(udev);
 
             // TODO: Unbind the drivers by writing to the appropriate /sys entry
+            unbind_fp = fopen(UNBIND_PATH, "w");
+            if (!unbind_fp)
+            {
+                log_err("Failed to open UNBIND_PATH for writing");
+                continue;
+            }
+            
+            for (int i = 0; i < id_list_size(id_list); i++)
+            {
+                char *curr_id = id_list_get(id_list, i);
+                if (write_to_sys(unbind_fp, curr_id) < 0)
+                {
+                    debug("Failed to write %s to %s",
+                        curr_id, UNBIND_PATH
+                    );
+                }
+            }
+
+            id_list_destroy(id_list);
         }
         valid = 1;
     }
+    fclose(unbind_fp);
     close(nls);
 
     return 0;

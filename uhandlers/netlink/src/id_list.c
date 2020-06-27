@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #define DEFAULT_CAPACITY 4
 
@@ -43,16 +44,18 @@ int id_list_add(struct ID_List *list, char *id)
         if (new_data == NULL)
             return -1;
         
-        new_data[list->size] = id;
+        strncpy(new_data[list->size], id, strlen(id));
+        // new_data[list->size] = id;
 
         list->data = new_data;
         list->capacity = new_capacity;
     }
     else
     {
-        list->data[list->size] = id;
+        strncpy(list->data[list->size], id, strlen(id));
+        // list->data[list->size] = id;
     }
-    list->size++;
+    list->size += 1;
 
     return 0;
 }
@@ -69,6 +72,10 @@ int id_list_size(struct ID_List *list)
     return list->size;
 }
 
+int id_list_capacity(struct ID_List *list)
+{
+    return list->capacity;
+}
 char *id_list_get(struct ID_List *list, int index)
 {
     if (index >= list->size || index < 0)

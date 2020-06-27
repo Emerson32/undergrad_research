@@ -21,7 +21,7 @@ void id_list_destroy(struct ID_List *list);
 *   If this function fails to reallocate the necessary memory,
 *   then -1 is returned and the original list remains untouched.
 */
-void id_list_add(struct ID_List *list, char *id);
+int id_list_add(struct ID_List *list, char *id);
 
 /*
 *   Removes the bus IDs currently in the list
@@ -32,6 +32,8 @@ void id_list_clear(struct ID_List *list);
 *   Returns the current size of the list
 */
 int id_list_size(struct ID_List *list);
+
+int id_list_capacity(struct ID_List *list);
 
 /*
 * Retrieves a list element at the specified index.
