@@ -20,7 +20,9 @@
 #define MYGRP        31
 #define MAX_PAYLOAD  1024
 
-#define MAX_SEQ             4
+#define MAX_SEQ        4
+#define MAX_DEVBUFF    1024
+#define MAX_IDBUFF     12
 
 int open_netlink(void)
 {
@@ -55,9 +57,6 @@ int open_netlink(void)
     return sock_fd;
 }
 
-
-// TODO: Store the bus IDs in an array list of type char *, rather than printing them out
-
 /*
 * Iterates over input devices within /sys/clas/input and
 * stores the bus IDs of each device with the name event*
@@ -73,8 +72,10 @@ void acquire_bus_ids(
     /* Iterate over the device list and store the respective bus IDs */
     udev_list_entry_foreach(dlist_entry, devs)
     {
-        char curr_id[12];           /* Current bus ID */
-        char curr_devpath[1024];    /* Current device path */
+        // char curr_id[12];           /* Current bus ID */
+        // char curr_devpath[1024];    /* Current device path */
+        char *curr_id = malloc(MAX_IDBUFF);
+        char *curr_devpath = malloc(MAX_DEVBUFF);
 
         const char *path;
         const char *dev_name;
@@ -83,20 +84,21 @@ void acquire_bus_ids(
         path = udev_list_entry_get_name(dlist_entry);
         device = udev_device_new_from_syspath(udev_ctx, path);
         
-        dev_name = udev_device_get_sysname(device);     /* The actual device name, e.g. event0 */
+        dev_name = udev_device_get_sysname(device);
 
-        /* Only worry about event* device names */
+        /* Only worry about eventX device names */
         if (strstr(dev_name, "event"))
         {
             debug("I: DEVNAME=%s", udev_device_get_sysname(device));
 
-            memset(&curr_id, '\0', sizeof(curr_id));
-            memset(&curr_devpath, '\0', sizeof(curr_devpath));
+            memset(curr_id, '\0', MAX_IDBUFF);
+            memset(curr_devpath, '\0', MAX_DEVBUFF);
 
             // Get the current device path
-            strncpy(curr_devpath, udev_device_get_devpath(device), sizeof(curr_devpath) - 1);
-            curr_devpath[sizeof(curr_devpath) - 1] = '\0';
-
+            strncat(
+                curr_devpath, udev_device_get_devpath(device),
+                MAX_DEVBUFF - 1);
+            
             find_bus_id(curr_id, curr_devpath);
             if (curr_id[0] == '\0')
             {
@@ -104,11 +106,8 @@ void acquire_bus_ids(
                 continue;
             }
 
-            // TODO: id_list_add call below segfaults upon first invocation
-            //      find_bus_id() and id_list_add() are the current culprits
-
             debug("Found bus_id %s for %s\n", curr_id, dev_name);
-            id_list_add(list, curr_id);
+            id_list_add(list, &curr_id);
         }
         udev_device_unref(device);
     }
@@ -117,11 +116,12 @@ void acquire_bus_ids(
 int main()
 {
     int nls;
-    int valid = 1;
+    int valid;
 
     char packet[MAX_PAYLOAD];
 
     FILE *unbind_fp;
+    struct ID_List *id_list = id_list_create();
 
     int is_first_stamp = 1;
     int sequence_count = 0;
@@ -134,6 +134,8 @@ int main()
 
     while (1)
     {
+        valid = 1;
+
         /* Get the keypress packet */
         memset(&packet, '\0', sizeof packet);
         recv_packet(nls, packet);
@@ -166,7 +168,8 @@ int main()
         /* Evaluate the validity after four keypresses */
         if (sequence_count == MAX_SEQ)
         {
-            avg_separation = (double)separation_sum / (MAX_SEQ - 1); /* Calculate avg of 3 separation measurements */
+            // Calculate avg of 3 separation measurements
+            avg_separation = (double)separation_sum / (MAX_SEQ - 1); 
             debug("Average key separation: %.2f", avg_separation);
             valid = validate_packet(&avg_separation);
 
@@ -187,7 +190,6 @@ int main()
             struct udev_enumerate *enumerate;
             struct udev_list_entry *devices;
 
-            /* Create udev context */
             udev = udev_new();
             if (!udev)
             {
@@ -195,7 +197,6 @@ int main()
                 return -1;
             }
 
-            /* Create enumerate context */
             enumerate = udev_enumerate_new(udev);
             if (!enumerate)
             {
@@ -218,19 +219,14 @@ int main()
             }
 
             /* Iterate over the device list and store the respective bus IDs */
-            struct ID_List *id_list = id_list_create();
             acquire_bus_ids(udev, devices, id_list);
             
-            debug("Printing out the id_list ...");
-            for (int i = 0; i < id_list_size(id_list); i++)
-            {
-                debug("ID: %s", id_list_get(id_list, i));
-            }
+            // debug("Printing out the id_list ...");
+            // // for (int i = 0; i < id_list_size(id_list); i++)
+            // {
+            //     debug("ID: %s", id_list_get(id_list, i));
+            // }
 
-            udev_enumerate_unref(enumerate);
-            udev_unref(udev);
-
-            // TODO: Unbind the drivers by writing to the appropriate /sys entry
             unbind_fp = fopen(UNBIND_PATH, "w");
             if (!unbind_fp)
             {
@@ -241,7 +237,7 @@ int main()
             for (int i = 0; i < id_list_size(id_list); i++)
             {
                 char *curr_id = id_list_get(id_list, i);
-                if (write_to_sys(unbind_fp, curr_id) < 0)
+                if (write_to_sys(&unbind_fp, &curr_id) < 0)
                 {
                     debug("Failed to write %s to %s",
                         curr_id, UNBIND_PATH
@@ -249,10 +245,14 @@ int main()
                 }
             }
 
-            id_list_destroy(id_list);
+            id_list_clear(id_list);
+
+            udev_enumerate_unref(enumerate);
+            udev_unref(udev);
         }
         valid = 1;
     }
+    id_list_destroy(id_list);
     fclose(unbind_fp);
     close(nls);
 

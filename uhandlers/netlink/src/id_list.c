@@ -34,8 +34,13 @@ void id_list_destroy(struct ID_List *list)
     free(list);
 }
 
-int id_list_add(struct ID_List *list, char *id)
+int id_list_add(struct ID_List *list, char **id)
 {
+    if (list->data == NULL)     /* List was previously cleared */
+    {
+        list->data = calloc(list->capacity, sizeof(char *));
+    }
+
     if (list->size == list->capacity)
     {
         int new_capacity = list->capacity * 2;
@@ -44,16 +49,16 @@ int id_list_add(struct ID_List *list, char *id)
         if (new_data == NULL)
             return -1;
         
-        strncpy(new_data[list->size], id, strlen(id));
-        // new_data[list->size] = id;
+        // strncpy(new_data[list->size], *id, strlen(*id));
+        new_data[list->size] = *id;
 
         list->data = new_data;
         list->capacity = new_capacity;
     }
     else
     {
-        strncpy(list->data[list->size], id, strlen(id));
-        // list->data[list->size] = id;
+        // strncpy(list->data[list->size], *id, strlen(*id));
+        list->data[list->size] = *id;
     }
     list->size += 1;
 
