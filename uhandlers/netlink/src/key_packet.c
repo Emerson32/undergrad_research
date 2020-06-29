@@ -26,7 +26,6 @@ int recv_packet(int sock, char *packt_buff)
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
 
-    //printf("Listening for keystroke packets...\n");
     if ((ret = recvmsg(sock, &msg, 0)) < 0)
         return -1;
  
@@ -60,12 +59,9 @@ unsigned long get_separation(char *packet)
 
     /* Parsing error occurred */
     if (!token)
-    {
         return -1;
-    }
 
     sscanf(token, "%ld", &stroke_separation);
-
     free(packet_copy);
 
     return stroke_separation;

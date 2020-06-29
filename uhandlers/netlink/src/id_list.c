@@ -3,11 +3,11 @@
 
 #define DEFAULT_CAPACITY 4
 
-struct ID_List{
+struct ID_List {
     int size;
     int capacity;
     char **data;
-} list;
+};
 
 struct ID_List *id_list_create()
 {
@@ -49,7 +49,6 @@ int id_list_add(struct ID_List *list, char **id)
         if (new_data == NULL)
             return -1;
         
-        // strncpy(new_data[list->size], *id, strlen(*id));
         new_data[list->size] = *id;
 
         list->data = new_data;
@@ -57,7 +56,6 @@ int id_list_add(struct ID_List *list, char **id)
     }
     else
     {
-        // strncpy(list->data[list->size], *id, strlen(*id));
         list->data[list->size] = *id;
     }
     list->size += 1;

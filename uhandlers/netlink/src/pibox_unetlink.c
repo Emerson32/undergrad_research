@@ -68,14 +68,12 @@ void acquire_bus_ids(
 {
     int ret;
 
-    struct udev_device *device;             /* udev device object */
+    struct udev_device *device;
     struct udev_list_entry *dlist_entry;    /* current device list entry */
 
     /* Iterate over the device list and store the respective bus IDs */
     udev_list_entry_foreach(dlist_entry, devs)
     {
-        // char curr_id[12];           /* Current bus ID */
-        // char curr_devpath[1024];    /* Current device path */
         char *curr_id = malloc(MAX_IDBUFF);
         char *curr_devpath = malloc(MAX_DEVBUFF);
 
@@ -147,7 +145,7 @@ int main()
     {
         valid = 1;
 
-        /* Get the keypress packet */
+        /* Receive the keypress packet */
         memset(&packet, '\0', sizeof packet);
         rv = recv_packet(nls, packet);
         if (rv < 0)
@@ -185,7 +183,6 @@ int main()
             debug("Average key separation: %.2f", avg_separation);
             valid = validate_packet(&avg_separation);
 
-            // Reset total, average, and sequence count
             separation_sum = 0;
             avg_separation = 0;
             sequence_count = 0;
@@ -232,6 +229,7 @@ int main()
             /* Iterate over the device list and store the respective bus IDs */
             acquire_bus_ids(udev, devices, id_list);
             
+            /* Unbind all devinces in the device list */
             for (int i = 0; i < id_list_size(id_list); i++)
             {
                 char *curr_id = id_list_get(id_list, i);
