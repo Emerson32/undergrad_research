@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# parse_dev_id.sh - Grabs the device id for a given label , i.e. /dev/sda
+# parse_dev_id.sh - Grabs the bus id for a given device
 DEV_LABEL=$1
 
 HEAD_STR="1-$(udevadm info --query=property --name=$DEV_LABEL | \

