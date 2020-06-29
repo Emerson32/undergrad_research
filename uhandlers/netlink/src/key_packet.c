@@ -9,7 +9,7 @@
 #define MAX_PAYLOAD         1024
 #define SEPARATION_THRESH   80
 
-void recv_packet(int sock, char *packt_buff)
+int recv_packet(int sock, char *packt_buff)
 {
     struct sockaddr_nl nladdr;
     struct msghdr msg;
@@ -28,11 +28,14 @@ void recv_packet(int sock, char *packt_buff)
 
     //printf("Listening for keystroke packets...\n");
     if ((ret = recvmsg(sock, &msg, 0)) < 0)
-        return;
+        return -1;
  
     // Copy the data into the provided packet buffer
-    strncpy(packt_buff, (char *)NLMSG_DATA((struct nlmsghdr *) &buff),
-            MAX_PAYLOAD);
+    strncpy(
+        packt_buff,
+        (char *)NLMSG_DATA((struct nlmsghdr *) &buff), MAX_PAYLOAD);
+    
+    return 0;
 }
 
 unsigned long get_separation(char *packet)

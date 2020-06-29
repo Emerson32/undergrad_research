@@ -8,7 +8,7 @@
 *   Searches for a substring within dev_path that has the bus ID
 *   format and copies the string into the result param.
 */
-void find_bus_id(char *result, char *dev_path);
+int find_bus_id(char *result, char *dev_path);
 
 /*
 * Writes the bus id to either BIND_PATH OR UNBIND_PATH,

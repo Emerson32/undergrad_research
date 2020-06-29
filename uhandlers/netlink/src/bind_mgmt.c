@@ -11,7 +11,7 @@
 #define MAX_MATCHES 1
 #define MAX_IDBUFF  12
 
-void find_bus_id(char *result, char *dev_path)
+int find_bus_id(char *result, char *dev_path)
 {
     regex_t regex;
     int ret;
@@ -23,7 +23,7 @@ void find_bus_id(char *result, char *dev_path)
     if (ret != 0)
     {
         debug("Failed to compile regex");
-        goto cleanup;
+        return -1;
     }
 
     ret = regexec(&regex, dev_path, MAX_MATCHES, matches, 0);
@@ -40,8 +40,8 @@ void find_bus_id(char *result, char *dev_path)
         result[strlen(result)] = '\0';
     }
 
-    cleanup:
     regfree(&regex);
+    return 0;
 }
 
 int write_to_sys(FILE **file, char **bus_id)
@@ -59,11 +59,5 @@ int write_to_sys(FILE **file, char **bus_id)
         return -1;
     }
 
-    // if (fflush(*file) != 0)
-    // {
-    //     return -1;
-    // }
-
-    debug("File writing was successful");
     return 0;
 }

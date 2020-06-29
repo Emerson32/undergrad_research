@@ -7,7 +7,7 @@
 /*
 * Responsible for receiving a keypress packet sent from kernel space
 */
-void recv_packet(int sock, char *packt_buff);
+int recv_packet(int sock, char *packt_buff);
 
 /* 
 * Responsible for retrieving the stroke separation measurement from each packet

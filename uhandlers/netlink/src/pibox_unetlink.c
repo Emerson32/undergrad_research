@@ -59,13 +59,15 @@ int open_netlink(void)
 
 /*
 * Iterates over input devices within /sys/clas/input and
-* stores the bus IDs of each device with the name event*
+* stores the bus IDs of each device with the name eventX
 */
 void acquire_bus_ids(
     struct udev *udev_ctx,
     struct udev_list_entry *devs,
     struct ID_List *list)
 {
+    int ret;
+
     struct udev_device *device;             /* udev device object */
     struct udev_list_entry *dlist_entry;    /* current device list entry */
 
@@ -99,8 +101,8 @@ void acquire_bus_ids(
                 curr_devpath, udev_device_get_devpath(device),
                 MAX_DEVBUFF - 1);
             
-            find_bus_id(curr_id, curr_devpath);
-            if (curr_id[0] == '\0')
+            ret = find_bus_id(curr_id, curr_devpath);
+            if (ret < 0)
             {
                 debug("Failed to parse the bus id for %s", dev_name);
                 continue;
@@ -117,17 +119,26 @@ int main()
 {
     int nls;
     int valid;
+    int rv;
 
     char packet[MAX_PAYLOAD];
 
     FILE *unbind_fp;
+
+    unbind_fp = fopen(UNBIND_PATH, "w");
+    if (!unbind_fp)
+    {
+        log_err("Failed to open UNBIND_PATH for writing");
+        return -1;
+    }
+
     struct ID_List *id_list = id_list_create();
 
     int is_first_stamp = 1;
     int sequence_count = 0;
-    unsigned long stroke_separation = 0;  /* Individual stroke separation measurement */
-    long separation_sum = 0;              /* Running total of stroke separation measurements */
-    double avg_separation = 0;            /* Average stroke separation used for keypress validation */
+    unsigned long stroke_separation = 0;
+    long separation_sum = 0;
+    double avg_separation = 0;
 
     if ((nls = open_netlink()) < 0)
         return nls;
@@ -138,8 +149,8 @@ int main()
 
         /* Get the keypress packet */
         memset(&packet, '\0', sizeof packet);
-        recv_packet(nls, packet);
-        if (packet[0] == '\0')      /* Packet read failed */
+        rv = recv_packet(nls, packet);
+        if (rv < 0)
         {
             log_err("[!] Failed to read packet");
         }
@@ -148,7 +159,8 @@ int main()
         debug("Packet contents: %s", packet);
         debug("Sequence count: %d", sequence_count);
 
-        if (is_first_stamp)    /* Do not add the very first stamp to the total */
+        /* Do not add the very first stamp to the total */
+        if (is_first_stamp)
         {
             sequence_count++;
             is_first_stamp = 0;
@@ -214,25 +226,11 @@ int main()
             if (!devices)
             {
                 debug("Failed to populate the device list");
-                udev_enumerate_unref(enumerate);
-                udev_unref(udev);
+                goto cleanup;
             }
 
             /* Iterate over the device list and store the respective bus IDs */
             acquire_bus_ids(udev, devices, id_list);
-            
-            // debug("Printing out the id_list ...");
-            // // for (int i = 0; i < id_list_size(id_list); i++)
-            // {
-            //     debug("ID: %s", id_list_get(id_list, i));
-            // }
-
-            unbind_fp = fopen(UNBIND_PATH, "w");
-            if (!unbind_fp)
-            {
-                log_err("Failed to open UNBIND_PATH for writing");
-                continue;
-            }
             
             for (int i = 0; i < id_list_size(id_list); i++)
             {
@@ -247,10 +245,10 @@ int main()
 
             id_list_clear(id_list);
 
+            cleanup:
             udev_enumerate_unref(enumerate);
             udev_unref(udev);
         }
-        valid = 1;
     }
     id_list_destroy(id_list);
     fclose(unbind_fp);
