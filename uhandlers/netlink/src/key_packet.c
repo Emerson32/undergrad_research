@@ -41,14 +41,22 @@ int recv_packet(int sock, char *packt_buff)
 unsigned long get_separation(char *packet)
 {
     char *token;
-    char delim[2] = " ";
+    char *packet_copy;
+    char *rest;
     signed long stroke_separation = 0;
 
-    /* Keypress value */
-    token = strtok(packet, delim);
+    int token_count = 0;
 
-    /* Stroke separation from last keypress */
-    token = strtok(NULL, delim);
+    packet_copy = strdup(packet);
+    rest = packet_copy;
+
+    while ((token = strtok_r(rest, " ", &rest)))
+    {
+        token_count++;
+
+        if (token_count == 2)    /* Stroke separation found */
+            break;
+    }
 
     /* Parsing error occurred */
     if (!token)
@@ -57,6 +65,8 @@ unsigned long get_separation(char *packet)
     }
 
     sscanf(token, "%ld", &stroke_separation);
+
+    free(packet_copy);
 
     return stroke_separation;
 }
