@@ -1,7 +1,3 @@
-/*
- * User-space netlink listener
- */
-
 #include <errno.h>
 #include <linux/netlink.h>
 #include <libudev.h>
@@ -49,7 +45,7 @@ int open_netlink(void)
     }
 
     if (setsockopt(sock_fd, 270, NETLINK_ADD_MEMBERSHIP,
-                &group, sizeof(group)) < 0)                 /* Requires root privileges */
+                &group, sizeof(group)) < 0)
     {
         perror("setsockopt");
         return -1;
@@ -83,7 +79,7 @@ void acquire_bus_ids(
         // Acquire a device handle through a syspath, e.g. /sys/input/event0
         path = udev_list_entry_get_name(dlist_entry);
         device = udev_device_new_from_syspath(udev_ctx, path);
-        
+
         dev_name = udev_device_get_sysname(device);
 
         /* Only worry about eventX device names */
@@ -98,7 +94,7 @@ void acquire_bus_ids(
             strncat(
                 curr_devpath, udev_device_get_devpath(device),
                 MAX_DEVBUFF - 1);
-            
+
             ret = find_bus_id(curr_id, curr_devpath);
             if (ret < 0)
             {
@@ -122,11 +118,19 @@ int main()
     char packet[MAX_PAYLOAD];
 
     FILE *unbind_fp;
+    FILE *bind_fp;
 
     unbind_fp = fopen(UNBIND_PATH, "w");
     if (!unbind_fp)
     {
         log_err("Failed to open UNBIND_PATH for writing");
+        return -1;
+    }
+
+    bind_fp = fopen(BIND_PATH, "w");
+    if (!bind_fp)
+    {
+        log_err("Failed to open BIND_PATH for writing");
         return -1;
     }
 
@@ -145,7 +149,7 @@ int main()
     {
         valid = 1;
 
-        /* Receive the keypress packet */
+        /* Receive the keystroke packet */
         memset(&packet, '\0', sizeof packet);
         rv = recv_packet(nls, packet);
         if (rv < 0)
@@ -179,7 +183,7 @@ int main()
         if (sequence_count == MAX_SEQ)
         {
             // Calculate avg of 3 separation measurements
-            avg_separation = (double)separation_sum / (MAX_SEQ - 1); 
+            avg_separation = (double)separation_sum / (MAX_SEQ - 1);
             debug("Average key separation: %.2f", avg_separation);
             valid = validate_packet(&avg_separation);
 
@@ -228,8 +232,8 @@ int main()
 
             /* Iterate over the device list and store the respective bus IDs */
             acquire_bus_ids(udev, devices, id_list);
-            
-            /* Unbind all devinces in the device list */
+
+            /* Unbind all devices in the device list */
             for (int i = 0; i < id_list_size(id_list); i++)
             {
                 char *curr_id = id_list_get(id_list, i);
@@ -237,6 +241,19 @@ int main()
                 {
                     debug("Failed to write %s to %s",
                         curr_id, UNBIND_PATH
+                    );
+                }
+            }
+
+            sleep(3);
+
+            for (int i = 0; i < id_list_size(id_list); i++)
+            {
+                char *curr_id = id_list_get(id_list, i);
+                if (write_to_sys(&bind_fp, &curr_id) < 0)
+                {
+                    debug("Failed to write %s to %s",
+                        curr_id, BIND_PATH
                     );
                 }
             }
@@ -249,6 +266,7 @@ int main()
         }
     }
     id_list_destroy(id_list);
+    fclose(bind_fp);
     fclose(unbind_fp);
     close(nls);
 
