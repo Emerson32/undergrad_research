@@ -1,10 +1,10 @@
 # System Files
 
 Log files:
-* pibox.log: Log file for recording intrusion timestamps (in /var/log/)
-* pibox.ids.log: Log file for storing bus ID data (in /var/log/)
+* /var/log/pibox.log: Log file for recording intrusion timestamps
+* /var/log/pibox.ids.log: Log file for storing bus ID data
 
 Executable files:
-* pibox_unetlink: Kernel listener responsible for attack prevention
-* pibox_gui: User interface that alerts users of attacks
+* /usr/sbin/pibox_unetlink: Responsible for attack prevention
+* /usr/sbin/pibox_gui: User interface that alerts users of attacks
 * pibox_kb.ko: Kernel module that calculates keystroke timing events
