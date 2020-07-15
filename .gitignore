@@ -11,5 +11,7 @@ drivers/input/*
 !drivers/input/pibox_kbbak.c
 !drivers/input/Makefile
 
+objs/
+
 # Ignore vs code configs
 .vscode

@@ -5,6 +5,12 @@
 #define KEY_PACKET_H
 
 /*
+* Responsible for establishing a netlink listener for keystrokes
+* sent from kernel space
+*/
+int open_netlink(void);
+
+/*
 * Responsible for receiving a keypress packet sent from kernel space
 */
 int recv_packet(int sock, char *packt_buff);

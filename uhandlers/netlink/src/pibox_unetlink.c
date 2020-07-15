@@ -12,46 +12,11 @@
 #include "id_list.h"
 #include "key_packet.h"
 
-#define MYPROTO      NETLINK_USERSOCK
-#define MYGRP        31
 #define MAX_PAYLOAD  1024
 
 #define MAX_SEQ        4
 #define MAX_DEVBUFF    1024
 #define MAX_IDBUFF     12
-
-int open_netlink(void)
-{
-    int sock_fd;
-    struct sockaddr_nl addr;
-    int group = MYGRP;
-
-    if ((sock_fd = socket(AF_NETLINK, SOCK_RAW, MYPROTO)) < 0)
-    {
-        perror("unetlink: socket");
-        return sock_fd;
-    }
-
-    memset(&addr, 0, sizeof(addr));
-    addr.nl_family = AF_NETLINK;
-    addr.nl_pid = getpid();     /* self pid */
-
-    if (bind(sock_fd, (struct sockaddr *)&addr,
-                sizeof addr) == -1)
-    {
-        close(sock_fd);
-        perror("unetlink: bind");
-        return -1;
-    }
-
-    if (setsockopt(sock_fd, 270, NETLINK_ADD_MEMBERSHIP,
-                &group, sizeof(group)) < 0)
-    {
-        perror("setsockopt");
-        return -1;
-    }
-    return sock_fd;
-}
 
 /*
 * Iterates over input devices within /sys/clas/input and
