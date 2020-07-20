@@ -1,10 +1,15 @@
 #include <errno.h>
+#include <fcntl.h>
 #include <linux/netlink.h>
 #include <libudev.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <signal.h>
 #include <unistd.h>
 
 #include "bind_mgmt.h"
@@ -17,6 +22,9 @@
 #define MAX_SEQ        4
 #define MAX_DEVBUFF    1024
 #define MAX_IDBUFF     12
+
+#define MAX_PIPE_BUFF 9
+#define PIPE_PATH   "/tmp/pibox_attach_pipe"
 
 /*
 * Iterates over input devices within /sys/clas/input and
@@ -74,12 +82,75 @@ void acquire_bus_ids(
     }
 }
 
+/* TODO: Implement IPC mechanism for this process and the GUI process.
+         
+         The attack_detected signal will notify the GUI process of a
+         detected attack. The user can then choose to either rebind the drivers
+         for the present devices (i.e. trust the current device set) 
+         or remove a device and then rebind the drivers to the remaining devices
+*/
+int notify_gui(int pid)
+{
+    return 0;
+}
+
+static void *reattach_listener(void *pid)
+{
+    pid_t gui_pid = *(pid_t *)pid;
+
+    int fd;
+    int rv;
+    char *buff;
+
+    while (1)
+    {
+        fd = open(PIPE_PATH, O_RDONLY);
+        if (fd < 0)
+        {
+            log_err("Failed to obtain fd for attach pipe");
+            return NULL;
+        }
+
+        rv = read(fd, buff, MAX_PIPE_BUFF);
+        if (rv < 0)
+        {
+            log_err("Failed to read attach pipe buffer");
+        }
+
+        debug("%s\n", buff);
+        close(fd);
+        // TODO: After testing, add the rebinding code below
+    }
+
+    return NULL;
+}
+
+int spawn_gui()
+{
+    pid_t pid = fork();
+
+    if (pid < 0)
+        return -1;
+    
+    if (pid == 0)
+    {
+        char *gui_path = "/home/pi/dev_files/pibox/pibox_gui.py";
+
+        /* Execute gui program */
+        if (execlp("python3", "python3", gui_path, (char *)NULL) < 0)
+        {
+            perror("execlp");
+            return -1;
+        }
+    }
+    return pid;
+}
+
 int main()
 {
     int nls;
     int valid;
     int rv;
-
     char packet[MAX_PAYLOAD];
 
     FILE *unbind_fp;
@@ -100,6 +171,35 @@ int main()
     }
 
     struct ID_List *id_list = id_list_create();
+
+    rv = mkfifo(PIPE_PATH, 0666);
+    if (rv < 0)
+    {
+        log_err("Failed to make pipe for attach events");
+        return -1;
+    }
+
+    pid_t gui_pid = spawn_gui();
+    if (gui_pid < 0)
+    {
+        log_err("Failed to spawn gui process");
+        return -1;
+    }
+
+    pthread_t listener_tid;
+    rv = pthread_create(&listener_tid, NULL, reattach_listener, &gui_pid);
+    if (rv != 0)
+    {
+        log_err("Failed to create listener thread for reattach events");
+        return -1;
+    }
+
+    rv = pthread_detach(listener_tid);     /* Avoid zombie threads */
+    if (rv != 0)
+    {
+        log_err("Failed to detach listener thread");
+        return -1;
+    }
 
     int is_first_stamp = 1;
     int sequence_count = 0;
@@ -210,18 +310,16 @@ int main()
                 }
             }
 
-            sleep(3);
-
-            for (int i = 0; i < id_list_size(id_list); i++)
-            {
-                char *curr_id = id_list_get(id_list, i);
-                if (write_to_sys(&bind_fp, &curr_id) < 0)
-                {
-                    debug("Failed to write %s to %s",
-                        curr_id, BIND_PATH
-                    );
-                }
-            }
+            // for (int i = 0; i < id_list_size(id_list); i++)
+            // {
+            //     char *curr_id = id_list_get(id_list, i);
+            //     if (write_to_sys(&bind_fp, &curr_id) < 0)
+            //     {
+            //         debug("Failed to write %s to %s",
+            //             curr_id, BIND_PATH
+            //         );
+            //     }
+            // }
 
             id_list_clear(id_list);
 
