@@ -27,7 +27,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 # 	$(CC) $(CFLAGS) -c $< -o $@ 
 
 pibox_unetlink: $(OBJS)
-	$(CC_CROSS) $(CROSSFLAGS) -o $@ $^ -ludev
+	$(CC_CROSS) $(CROSSFLAGS) -o $@ $^ -ludev -pthread
 
 clean:
 	rm -rf pibox_unetlink $(OBJS)
