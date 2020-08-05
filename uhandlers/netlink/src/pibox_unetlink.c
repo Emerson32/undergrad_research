@@ -23,8 +23,12 @@
 #define MAX_DEVBUFF    1024
 #define MAX_IDBUFF     12
 
-#define MAX_PIPE_BUFF 9
-#define PIPE_PATH   "/tmp/pibox_attach_pipe"
+#define MAX_PIPE_BUFF 8
+#define ATTACH_PIPE_PATH   "/tmp/pibox_attach_pipe"
+#define ALERT_PIPE_PATH    "/tmp/pibox_alert_pipe"
+
+static struct ID_List *id_list; 
+static pthread_mutex_t bind_mtx = PTHREAD_MUTEX_INITIALIZER;  /* For ID_List */
 
 /*
 * Iterates over input devices within /sys/clas/input and
@@ -82,44 +86,92 @@ void acquire_bus_ids(
     }
 }
 
-/* TODO: Implement IPC mechanism for this process and the GUI process.
-         
-         The attack_detected signal will notify the GUI process of a
-         detected attack. The user can then choose to either rebind the drivers
-         for the present devices (i.e. trust the current device set) 
-         or remove a device and then rebind the drivers to the remaining devices
-*/
-int notify_gui(int pid)
+int alert_gui()
 {
+    int alert_fd;
+    ssize_t bytes_written;
+    char *msg = "Attack Detected";
+
+    alert_fd = open(ALERT_PIPE_PATH, O_WRONLY);
+    if (alert_fd < 0)
+    {
+        log_err("Failed to obtain fd for alert pipe");
+        return -1;
+    }
+
+    bytes_written = write(alert_fd, msg, strlen(msg));
+    if (bytes_written != strlen(msg))
+    {
+        debug("Failed to write to the alert pipe");
+        return -1;
+    }
+
     return 0;
 }
 
 static void *reattach_listener(void *pid)
 {
-    pid_t gui_pid = *(pid_t *)pid;
-
-    int fd;
+    int attach_fd;
     int rv;
-    char *buff;
+    FILE *bind_fp;
+    ssize_t bytes_read;
+    char buff[MAX_PIPE_BUFF];
 
     while (1)
     {
-        fd = open(PIPE_PATH, O_RDONLY);
-        if (fd < 0)
+        attach_fd = open(ATTACH_PIPE_PATH, O_RDONLY);
+        if (attach_fd < 0)
         {
             log_err("Failed to obtain fd for attach pipe");
             return NULL;
         }
 
-        rv = read(fd, buff, MAX_PIPE_BUFF);
-        if (rv < 0)
+        bytes_read = read(attach_fd, buff, MAX_PIPE_BUFF);
+        if (bytes_read < 0)
         {
-            log_err("Failed to read attach pipe buffer");
+            log_err("Failed to read attach pipe");
+        }
+        // write(STDOUT_FILENO, buff, bytes_read);
+
+        bind_fp = fopen(BIND_PATH, "w");
+        if (!bind_fp)
+        {
+            log_err("Failed to open BIND_PATH for writing");
+            return NULL;
         }
 
-        debug("%s\n", buff);
-        close(fd);
-        // TODO: After testing, add the rebinding code below
+        if (strncmp(buff, "Reattach", MAX_PIPE_BUFF) == 0)
+        {
+            rv = pthread_mutex_lock(&bind_mtx);
+            if (rv != 0)
+            {
+                perror("pthread_mutex_lock");
+                return NULL;
+            }
+
+            for (int i = 0; i < id_list_size(id_list); i++)
+            {
+                char *curr_id = id_list_get(id_list, i);
+                if (write_to_sys(&bind_fp, &curr_id) < 0)
+                {
+                    debug("Failed to write %s to %s",
+                        curr_id, BIND_PATH
+                    );
+                }
+            }
+
+            id_list_clear(id_list);
+
+            rv = pthread_mutex_unlock(&bind_mtx);
+            if (rv != 0)
+            {
+                perror("pthread_mutex_unlock");
+                return NULL;
+            }
+        }
+
+        fclose(bind_fp);
+        close(attach_fd);
     }
 
     return NULL;
@@ -154,7 +206,6 @@ int main()
     char packet[MAX_PAYLOAD];
 
     FILE *unbind_fp;
-    FILE *bind_fp;
 
     unbind_fp = fopen(UNBIND_PATH, "w");
     if (!unbind_fp)
@@ -162,21 +213,35 @@ int main()
         log_err("Failed to open UNBIND_PATH for writing");
         return -1;
     }
+    
+    id_list = id_list_create();
 
-    bind_fp = fopen(BIND_PATH, "w");
-    if (!bind_fp)
-    {
-        log_err("Failed to open BIND_PATH for writing");
-        return -1;
-    }
-
-    struct ID_List *id_list = id_list_create();
-
-    rv = mkfifo(PIPE_PATH, 0666);
+    rv = mkfifo(ATTACH_PIPE_PATH, 0666);
     if (rv < 0)
     {
-        log_err("Failed to make pipe for attach events");
-        return -1;
+        if (errno == EEXIST)
+        {
+            log_info("Attach pipe already exists");
+        }
+        else
+        {
+            log_err("Failed to make pipe for attach events");
+            return -1;
+        }
+    }
+
+    rv = mkfifo(ALERT_PIPE_PATH, 0666);
+    if (rv < 0)
+    {
+        if (errno == EEXIST)
+        {
+            log_info("Alert pipe already exists");
+        }
+        else
+        {
+            log_err("Failed to make pipe for alert events");
+            return -1;
+        }
     }
 
     pid_t gui_pid = spawn_gui();
@@ -299,6 +364,13 @@ int main()
             acquire_bus_ids(udev, devices, id_list);
 
             /* Unbind all devices in the device list */
+            rv = pthread_mutex_lock(&bind_mtx);
+            if (rv != 0)
+            {
+                perror("pthread_mutex_lock");
+                return -1;
+            }
+
             for (int i = 0; i < id_list_size(id_list); i++)
             {
                 char *curr_id = id_list_get(id_list, i);
@@ -310,18 +382,15 @@ int main()
                 }
             }
 
-            // for (int i = 0; i < id_list_size(id_list); i++)
-            // {
-            //     char *curr_id = id_list_get(id_list, i);
-            //     if (write_to_sys(&bind_fp, &curr_id) < 0)
-            //     {
-            //         debug("Failed to write %s to %s",
-            //             curr_id, BIND_PATH
-            //         );
-            //     }
-            // }
+            rv = pthread_mutex_unlock(&bind_mtx);
+            if (rv != 0)
+            {
+                perror("pthread_mutex_unlock");
+                return -1;
+            }
 
-            id_list_clear(id_list);
+            // Notify the GUI of attack detection
+            alert_gui();
 
             cleanup:
             udev_enumerate_unref(enumerate);
@@ -329,7 +398,6 @@ int main()
         }
     }
     id_list_destroy(id_list);
-    fclose(bind_fp);
     fclose(unbind_fp);
     close(nls);
 
