@@ -350,6 +350,12 @@ int main()
 
             /* Specify subsystem as input and scan for devices */
             udev_enumerate_add_match_subsystem(enumerate, "input");
+
+            /* Only find devices with the property ID_INPUT_KEYBOARD */
+            udev_enumerate_add_match_property(
+                enumerate,
+                "ID_INPUT_KEYBOARD", "1");
+
             udev_enumerate_scan_devices(enumerate);
 
             /* Populate the device list */
