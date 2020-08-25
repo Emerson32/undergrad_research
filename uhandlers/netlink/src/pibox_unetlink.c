@@ -28,7 +28,7 @@
 #define ALERT_PIPE_PATH    "/tmp/pibox_alert_pipe"
 
 static struct ID_List *id_list; 
-static pthread_mutex_t bind_mtx = PTHREAD_MUTEX_INITIALIZER;  /* For ID_List */
+static pthread_mutex_t idl_mtx = PTHREAD_MUTEX_INITIALIZER;  /* For ID_List */
 
 /*
 * Iterates over input devices within /sys/clas/input and
@@ -142,7 +142,7 @@ static void *reattach_listener(void *pid)
 
         if (strncmp(buff, "Reattach", MAX_PIPE_BUFF) == 0)
         {
-            rv = pthread_mutex_lock(&bind_mtx);
+            rv = pthread_mutex_lock(&idl_mtx);
             if (rv != 0)
             {
                 perror("pthread_mutex_lock");
@@ -162,7 +162,7 @@ static void *reattach_listener(void *pid)
 
             id_list_clear(id_list);
 
-            rv = pthread_mutex_unlock(&bind_mtx);
+            rv = pthread_mutex_unlock(&idl_mtx);
             if (rv != 0)
             {
                 perror("pthread_mutex_unlock");
@@ -370,7 +370,7 @@ int main()
             acquire_bus_ids(udev, devices, id_list);
 
             /* Unbind all devices in the device list */
-            rv = pthread_mutex_lock(&bind_mtx);
+            rv = pthread_mutex_lock(&idl_mtx);
             if (rv != 0)
             {
                 perror("pthread_mutex_lock");
@@ -388,7 +388,7 @@ int main()
                 }
             }
 
-            rv = pthread_mutex_unlock(&bind_mtx);
+            rv = pthread_mutex_unlock(&idl_mtx);
             if (rv != 0)
             {
                 perror("pthread_mutex_unlock");
