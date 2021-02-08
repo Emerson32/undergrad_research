@@ -86,29 +86,6 @@ void acquire_bus_ids(
     }
 }
 
-int alert_gui()
-{
-    int alert_fd;
-    ssize_t bytes_written;
-    char *msg = "Attack Detected";
-
-    alert_fd = open(ALERT_PIPE_PATH, O_WRONLY);
-    if (alert_fd < 0)
-    {
-        log_err("Failed to obtain fd for alert pipe");
-        return -1;
-    }
-
-    bytes_written = write(alert_fd, msg, strlen(msg));
-    if (bytes_written != strlen(msg))
-    {
-        debug("Failed to write to the alert pipe");
-        return -1;
-    }
-
-    return 0;
-}
-
 static void *reattach_listener(void *pid)
 {
     int attach_fd;
@@ -394,9 +371,6 @@ int main()
                 perror("pthread_mutex_unlock");
                 return -1;
             }
-
-            // Notify the GUI of attack detection
-            alert_gui();
 
             cleanup:
             udev_enumerate_unref(enumerate);
