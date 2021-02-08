@@ -108,7 +108,6 @@ static void *reattach_listener(void *pid)
         {
             log_err("Failed to read attach pipe");
         }
-        // write(STDOUT_FILENO, buff, bytes_read);
 
         bind_fp = fopen(BIND_PATH, "w");
         if (!bind_fp)
