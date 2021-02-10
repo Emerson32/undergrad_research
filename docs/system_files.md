@@ -1,9 +1,4 @@
 # System Files
-
-Log files:
-* /var/log/pibox.log: Log file for recording intrusion timestamps
-* /var/log/pibox.ids.log: Log file for storing bus ID data
-
 Executable files:
 * /usr/sbin/pibox_unetlink: Responsible for attack prevention
 * /usr/sbin/pibox_gui: User interface that alerts users of attacks
